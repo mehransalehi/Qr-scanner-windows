@@ -16,6 +16,12 @@ let overlayWindow: BrowserWindow | null = null
 
 type Roi = { x: number; y: number; width: number; height: number }
 
+const OVERLAY_DISMISS_DELAY_MS = 80
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms))
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1100,
@@ -108,7 +114,10 @@ ipcMain.handle('scanner:select-roi', async (): Promise<Roi | null> => {
       const b = overlayWindow.getBounds()
       const selectedRoi = rect.width < 8 || rect.height < 8 ? null : { x: b.x + rect.x, y: b.y + rect.y, width: rect.width, height: rect.height }
       const currentOverlay = overlayWindow
-      currentOverlay.once('closed', () => resolveOnce(selectedRoi))
+      currentOverlay.once('closed', async () => {
+        await wait(OVERLAY_DISMISS_DELAY_MS)
+        resolveOnce(selectedRoi)
+      })
       currentOverlay.close()
       overlayWindow = null
     })
@@ -118,7 +127,10 @@ ipcMain.handle('scanner:select-roi', async (): Promise<Roi | null> => {
       const currentOverlay = overlayWindow
       if (!currentOverlay) return resolveOnce(null)
       closeInitiatedBySelectionFlow = true
-      currentOverlay.once('closed', () => resolveOnce(null))
+      currentOverlay.once('closed', async () => {
+        await wait(OVERLAY_DISMISS_DELAY_MS)
+        resolveOnce(null)
+      })
       currentOverlay.close()
       overlayWindow = null
     })
