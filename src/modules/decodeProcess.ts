@@ -12,10 +12,12 @@ let zxingReaderPromise: Promise<ZxingBrowserReader | null> | null = null
 async function getZxingReader(): Promise<ZxingBrowserReader | null> {
   if (zxingReaderPromise) return zxingReaderPromise
 
-  const lazyImport = new Function('moduleName', 'return import(moduleName)') as (moduleName: string) => Promise<any>
-
-  zxingReaderPromise = lazyImport('@zxing/browser')
-    .then((mod) => new mod.BrowserQRCodeReader())
+  const moduleName = '@zxing/browser'
+  zxingReaderPromise = import(/* @vite-ignore */ moduleName)
+    .then((mod) => {
+      const ReaderCtor = mod.BrowserQRCodeReader ?? mod.BrowserMultiFormatReader
+      return ReaderCtor ? new ReaderCtor() : null
+    })
     .catch(() => null)
 
   return zxingReaderPromise
