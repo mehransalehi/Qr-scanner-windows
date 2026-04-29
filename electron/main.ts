@@ -85,6 +85,13 @@ ipcMain.handle('scanner:select-roi', async (): Promise<Roi | null> => {
   )
 
   return new Promise((resolve) => {
+    let settled = false
+    const resolveOnce = (value: Roi | null) => {
+      if (settled) return
+      settled = true
+      resolve(value)
+    }
+
     createOverlayWindow(virtualBounds)
 
     const cleanup = () => {
@@ -94,28 +101,31 @@ ipcMain.handle('scanner:select-roi', async (): Promise<Roi | null> => {
 
     ipcMain.once('overlay:selected', (_event, rect: Roi) => {
       cleanup()
-      if (!overlayWindow) return resolve(null)
+      if (!overlayWindow) return resolveOnce(null)
       const b = overlayWindow.getBounds()
       const selectedRoi = rect.width < 8 || rect.height < 8 ? null : { x: b.x + rect.x, y: b.y + rect.y, width: rect.width, height: rect.height }
       const currentOverlay = overlayWindow
-      currentOverlay.once('closed', () => resolve(selectedRoi))
+      currentOverlay.once('closed', () => resolveOnce(selectedRoi))
       currentOverlay.close()
       overlayWindow = null
     })
 
     ipcMain.once('overlay:cancelled', () => {
       cleanup()
-      overlayWindow?.close()
+      const currentOverlay = overlayWindow
+      if (!currentOverlay) return resolveOnce(null)
+      currentOverlay.once('closed', () => resolveOnce(null))
+      currentOverlay.close()
       overlayWindow = null
-      resolve(null)
     })
 
     overlayWindow?.once('closed', () => {
-      overlayWindow = null
       cleanup()
-      resolve(null)
+      overlayWindow = null
+      resolveOnce(null)
     })
   })
+
 })
 
 ipcMain.handle('scanner:capture-fullscreen', async (_event, roi: Roi) => {

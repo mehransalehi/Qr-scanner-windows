@@ -1,28 +1,28 @@
-import { ipcMain as r, screen as f, desktopCapturer as x, dialog as v, app as h, BrowserWindow as m } from "electron";
-import { fileURLToPath as R } from "node:url";
-import a from "node:path";
-import E from "node:fs/promises";
-const w = a.dirname(R(import.meta.url));
-process.env.APP_ROOT = a.join(w, "..");
-const p = process.env.VITE_DEV_SERVER_URL, D = a.join(process.env.APP_ROOT, "dist-electron"), b = a.join(process.env.APP_ROOT, "dist");
-process.env.VITE_PUBLIC = p ? a.join(process.env.APP_ROOT, "public") : b;
-let c, n = null;
-function g() {
-  c = new m({
+import { ipcMain as d, screen as w, desktopCapturer as R, dialog as E, app as u, BrowserWindow as m } from "electron";
+import { fileURLToPath as P } from "node:url";
+import l from "node:path";
+import _ from "node:fs/promises";
+const b = l.dirname(P(import.meta.url));
+process.env.APP_ROOT = l.join(b, "..");
+const p = process.env.VITE_DEV_SERVER_URL, T = l.join(process.env.APP_ROOT, "dist-electron"), g = l.join(process.env.APP_ROOT, "dist");
+process.env.VITE_PUBLIC = p ? l.join(process.env.APP_ROOT, "public") : g;
+let h, t = null;
+function x() {
+  h = new m({
     width: 1100,
     height: 780,
-    icon: a.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
+    icon: l.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
     webPreferences: {
-      preload: a.join(w, "preload.mjs")
+      preload: l.join(b, "preload.mjs")
     }
-  }), p ? c.loadURL(p) : c.loadFile(a.join(b, "index.html"));
+  }), p ? h.loadURL(p) : h.loadFile(l.join(g, "index.html"));
 }
-function P(o) {
-  n = new m({
-    x: o.x,
-    y: o.y,
-    width: o.width,
-    height: o.height,
+function I(s) {
+  t = new m({
+    x: s.x,
+    y: s.y,
+    width: s.width,
+    height: s.height,
     frame: !1,
     transparent: !0,
     alwaysOnTop: !0,
@@ -34,7 +34,7 @@ function P(o) {
       contextIsolation: !1,
       nodeIntegration: !0
     }
-  }), n.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`<!doctype html><html><head><style>
+  }), t.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`<!doctype html><html><head><style>
     html,body{margin:0;width:100%;height:100%;overflow:hidden;cursor:crosshair;background:rgba(0,0,0,.45)}
     #box{position:absolute;border:2px solid #58a6ff;background:rgba(88,166,255,.15);display:none}
     #hint{position:fixed;top:16px;left:16px;color:white;font-family:Segoe UI,sans-serif;background:rgba(0,0,0,.5);padding:10px 12px;border-radius:8px}
@@ -49,68 +49,75 @@ function P(o) {
     window.addEventListener('keydown',e=>{if(e.key==='Escape')ipcRenderer.send('overlay:cancelled');});
   <\/script></body></html>`)}`);
 }
-r.handle("scanner:select-roi", async () => {
-  n && (n.close(), n = null);
-  const o = f.getAllDisplays(), s = o.reduce(
-    (t, e) => ({
-      x: Math.min(t.x, e.bounds.x),
-      y: Math.min(t.y, e.bounds.y),
-      width: Math.max(t.x + t.width, e.bounds.x + e.bounds.width) - Math.min(t.x, e.bounds.x),
-      height: Math.max(t.y + t.height, e.bounds.y + e.bounds.height) - Math.min(t.y, e.bounds.y)
+d.handle("scanner:select-roi", async () => {
+  t && (t.close(), t = null);
+  const s = w.getAllDisplays(), i = s.reduce(
+    (n, e) => ({
+      x: Math.min(n.x, e.bounds.x),
+      y: Math.min(n.y, e.bounds.y),
+      width: Math.max(n.x + n.width, e.bounds.x + e.bounds.width) - Math.min(n.x, e.bounds.x),
+      height: Math.max(n.y + n.height, e.bounds.y + e.bounds.height) - Math.min(n.y, e.bounds.y)
     }),
-    o[0].bounds
+    s[0].bounds
   );
-  return new Promise((t) => {
-    P(s);
-    const e = () => {
-      r.removeAllListeners("overlay:selected"), r.removeAllListeners("overlay:cancelled");
+  return new Promise((n) => {
+    let e = !1;
+    const o = (r) => {
+      e || (e = !0, n(r));
     };
-    r.once("overlay:selected", (l, i) => {
-      if (e(), !n) return t(null);
-      const d = n.getBounds(), u = i.width < 8 || i.height < 8 ? null : { x: d.x + i.x, y: d.y + i.y, width: i.width, height: i.height }, y = n;
-      y.once("closed", () => t(u)), y.close(), n = null;
-    }), r.once("overlay:cancelled", () => {
-      e(), n == null || n.close(), n = null, t(null);
-    }), n == null || n.once("closed", () => {
-      n = null, e(), t(null);
+    I(i);
+    const c = () => {
+      d.removeAllListeners("overlay:selected"), d.removeAllListeners("overlay:cancelled");
+    };
+    d.once("overlay:selected", (r, a) => {
+      if (c(), !t) return o(null);
+      const y = t.getBounds(), v = a.width < 8 || a.height < 8 ? null : { x: y.x + a.x, y: y.y + a.y, width: a.width, height: a.height }, f = t;
+      f.once("closed", () => o(v)), f.close(), t = null;
+    }), d.once("overlay:cancelled", () => {
+      c();
+      const r = t;
+      if (!r) return o(null);
+      r.once("closed", () => o(null)), r.close(), t = null;
+    }), t == null || t.once("closed", () => {
+      c(), t = null, o(null);
     });
   });
 });
-r.handle("scanner:capture-fullscreen", async (o, s) => {
-  const t = { x: s.x + s.width / 2, y: s.y + s.height / 2 }, e = f.getDisplayNearestPoint(t), l = e.scaleFactor || 1, i = await x.getSources({
+d.handle("scanner:capture-fullscreen", async (s, i) => {
+  const n = { x: i.x + i.width / 2, y: i.y + i.height / 2 }, e = w.getDisplayNearestPoint(n), o = e.scaleFactor || 1, c = await R.getSources({
     types: ["screen"],
     thumbnailSize: {
-      width: Math.floor(e.bounds.width * l),
-      height: Math.floor(e.bounds.height * l)
+      width: Math.floor(e.bounds.width * o),
+      height: Math.floor(e.bounds.height * o)
     },
     fetchWindowIcons: !1
-  }), d = i.find((u) => u.display_id === String(e.id)) || i[0];
-  if (!d) throw new Error("No screen source available");
+  }), r = c.find((a) => a.display_id === String(e.id)) || c[0];
+  if (!r) throw new Error("No screen source available");
   return {
-    imageDataUrl: d.thumbnail.toDataURL(),
+    imageDataUrl: r.thumbnail.toDataURL(),
     displayBounds: e.bounds,
-    scaleFactor: l
+    scaleFactor: o
   };
 });
-r.handle("scanner:save-image", async (o, s) => {
-  const { canceled: t, filePath: e } = await v.showSaveDialog({
+d.handle("scanner:save-image", async (s, i) => {
+  const { canceled: n, filePath: e } = await E.showSaveDialog({
     title: "Save Captured Image",
     defaultPath: `qr-capture-${Date.now()}.png`,
     filters: [{ name: "PNG Image", extensions: ["png"] }]
   });
-  if (t || !e) return { canceled: !0 };
-  const l = s.replace(/^data:image\/png;base64,/, "");
-  return await E.writeFile(e, Buffer.from(l, "base64")), { canceled: !1, filePath: e };
+  if (n || !e) return { canceled: !0 };
+  const o = i.replace(/^data:image\/png;base64,/, "");
+  return await _.writeFile(e, Buffer.from(o, "base64")), { canceled: !1, filePath: e };
 });
-h.on("window-all-closed", () => {
-  process.platform !== "darwin" && (h.quit(), c = null);
+u.on("window-all-closed", () => {
+  process.platform !== "darwin" && (u.quit(), h = null);
 });
-h.on("activate", () => {
-  m.getAllWindows().length === 0 && g();
+u.on("activate", () => {
+  m.getAllWindows().length === 0 && x();
 });
-h.whenReady().then(g);
+u.whenReady().then(x);
 export {
-  D as MAIN_DIST,
-  b as RENDERER_DIST,
+  T as MAIN_DIST,
+  g as RENDERER_DIST,
   p as VITE_DEV_SERVER_URL
 };
