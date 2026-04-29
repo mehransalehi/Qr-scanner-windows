@@ -1,1 +1,7 @@
-"use strict";const e=require("electron");e.contextBridge.exposeInMainWorld("scannerApi",{selectRoi:()=>e.ipcRenderer.invoke("scanner:select-roi"),captureFullscreen:n=>e.ipcRenderer.invoke("scanner:capture-fullscreen",n),saveImage:n=>e.ipcRenderer.invoke("scanner:save-image",n)});
+"use strict";
+const electron = require("electron");
+electron.contextBridge.exposeInMainWorld("scannerApi", {
+  selectRoi: () => electron.ipcRenderer.invoke("scanner:select-roi"),
+  captureFullscreen: (roi) => electron.ipcRenderer.invoke("scanner:capture-fullscreen", roi),
+  saveImage: (dataUrl) => electron.ipcRenderer.invoke("scanner:save-image", dataUrl)
+});
