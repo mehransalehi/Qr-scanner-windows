@@ -96,10 +96,11 @@ ipcMain.handle('scanner:select-roi', async (): Promise<Roi | null> => {
       cleanup()
       if (!overlayWindow) return resolve(null)
       const b = overlayWindow.getBounds()
-      overlayWindow.close()
+      const selectedRoi = rect.width < 8 || rect.height < 8 ? null : { x: b.x + rect.x, y: b.y + rect.y, width: rect.width, height: rect.height }
+      const currentOverlay = overlayWindow
+      currentOverlay.once('closed', () => resolve(selectedRoi))
+      currentOverlay.close()
       overlayWindow = null
-      if (rect.width < 8 || rect.height < 8) return resolve(null)
-      resolve({ x: b.x + rect.x, y: b.y + rect.y, width: rect.width, height: rect.height })
     })
 
     ipcMain.once('overlay:cancelled', () => {
