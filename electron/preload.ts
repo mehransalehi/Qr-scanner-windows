@@ -1,24 +1,14 @@
 import { ipcRenderer, contextBridge } from 'electron'
 
-// --------- Expose some API to the Renderer process ---------
-contextBridge.exposeInMainWorld('ipcRenderer', {
-  on(...args: Parameters<typeof ipcRenderer.on>) {
-    const [channel, listener] = args
-    return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
-  },
-  off(...args: Parameters<typeof ipcRenderer.off>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.off(channel, ...omit)
-  },
-  send(...args: Parameters<typeof ipcRenderer.send>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.send(channel, ...omit)
-  },
-  invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.invoke(channel, ...omit)
-  },
+type Roi = { x: number; y: number; width: number; height: number }
 
-  // You can expose other APTs you need here.
-  // ...
+contextBridge.exposeInMainWorld('scannerApi', {
+  selectRoi: () => ipcRenderer.invoke('scanner:select-roi') as Promise<Roi | null>,
+  captureFullscreen: (roi: Roi) =>
+    ipcRenderer.invoke('scanner:capture-fullscreen', roi) as Promise<{
+      imageDataUrl: string
+      displayBounds: { x: number; y: number; width: number; height: number }
+      scaleFactor: number
+    }>,
+  saveImage: (dataUrl: string) => ipcRenderer.invoke('scanner:save-image', dataUrl),
 })
