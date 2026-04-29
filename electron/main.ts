@@ -86,6 +86,8 @@ ipcMain.handle('scanner:select-roi', async (): Promise<Roi | null> => {
 
   return new Promise((resolve) => {
     let settled = false
+    let closeInitiatedBySelectionFlow = false
+
     const resolveOnce = (value: Roi | null) => {
       if (settled) return
       settled = true
@@ -102,6 +104,7 @@ ipcMain.handle('scanner:select-roi', async (): Promise<Roi | null> => {
     ipcMain.once('overlay:selected', (_event, rect: Roi) => {
       cleanup()
       if (!overlayWindow) return resolveOnce(null)
+      closeInitiatedBySelectionFlow = true
       const b = overlayWindow.getBounds()
       const selectedRoi = rect.width < 8 || rect.height < 8 ? null : { x: b.x + rect.x, y: b.y + rect.y, width: rect.width, height: rect.height }
       const currentOverlay = overlayWindow
@@ -114,6 +117,7 @@ ipcMain.handle('scanner:select-roi', async (): Promise<Roi | null> => {
       cleanup()
       const currentOverlay = overlayWindow
       if (!currentOverlay) return resolveOnce(null)
+      closeInitiatedBySelectionFlow = true
       currentOverlay.once('closed', () => resolveOnce(null))
       currentOverlay.close()
       overlayWindow = null
@@ -122,7 +126,7 @@ ipcMain.handle('scanner:select-roi', async (): Promise<Roi | null> => {
     overlayWindow?.once('closed', () => {
       cleanup()
       overlayWindow = null
-      resolveOnce(null)
+      if (!closeInitiatedBySelectionFlow) resolveOnce(null)
     })
   })
 
