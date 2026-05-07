@@ -9,6 +9,7 @@ export const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 
 let win: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
+let selectionOverlayWindows: BrowserWindow[] = []
 
 type Roi = { x: number; y: number; width: number; height: number }
 
@@ -72,8 +73,8 @@ function getVirtualBounds() {
   )
 }
 
-function createOverlayWindow(bounds: Electron.Rectangle) {
-  overlayWindow = new BrowserWindow({
+function createSelectionOverlayWindow(bounds: Electron.Rectangle) {
+  const selectionWindow = new BrowserWindow({
     x: bounds.x,
     y: bounds.y,
     width: bounds.width,
@@ -134,17 +135,35 @@ function createOverlayWindow(bounds: Electron.Rectangle) {
     });
   </script></body></html>`
 
-  overlayWindow.setContentProtection(true)
-  overlayWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+  selectionWindow.setContentProtection(true)
+  selectionWindow.setAlwaysOnTop(true, 'screen-saver')
+  selectionWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  selectionWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+  return selectionWindow
+}
+
+function createSelectionOverlayWindows() {
+  selectionOverlayWindows = screen
+    .getAllDisplays()
+    .map((display) => createSelectionOverlayWindow(display.bounds))
+
+  selectionOverlayWindows.forEach((selectionWindow) => {
+    selectionWindow.once('closed', () => {
+      selectionOverlayWindows = selectionOverlayWindows.filter((window) => window !== selectionWindow)
+    })
+  })
+}
+
+function closeSelectionOverlayWindows() {
+  const windows = selectionOverlayWindows
+  selectionOverlayWindows = []
+  windows.forEach((selectionWindow) => {
+    if (!selectionWindow.isDestroyed()) selectionWindow.close()
+  })
 }
 
 ipcMain.handle('scanner:select-roi', async (): Promise<Roi | null> => {
-  if (overlayWindow) {
-    overlayWindow.close()
-    overlayWindow = null
-  }
-
-  const virtualBounds = getVirtualBounds()
+  closeOverlayWindow()
 
   return new Promise((resolve) => {
     let settled = false
@@ -156,7 +175,7 @@ ipcMain.handle('scanner:select-roi', async (): Promise<Roi | null> => {
       resolve(value)
     }
 
-    createOverlayWindow(virtualBounds)
+    createSelectionOverlayWindows()
 
     const cleanup = () => {
       ipcMain.removeAllListeners('overlay:selected')
@@ -165,11 +184,12 @@ ipcMain.handle('scanner:select-roi', async (): Promise<Roi | null> => {
 
     ipcMain.once('overlay:selected', (_event, rect: Roi) => {
       cleanup()
-      if (!overlayWindow) return resolveOnce(null)
+      const selectionWindow = BrowserWindow.fromWebContents(_event.sender)
+      if (!selectionWindow || selectionWindow.isDestroyed()) return resolveOnce(null)
 
       closing = true
 
-      const b = overlayWindow.getBounds()
+      const b = selectionWindow.getBounds()
       const selectedRoi =
         rect.width < 8 || rect.height < 8
           ? null
@@ -180,34 +200,24 @@ ipcMain.handle('scanner:select-roi', async (): Promise<Roi | null> => {
               height: rect.height,
             }
 
-      overlayWindow.once('closed', async () => {
-        await wait(OVERLAY_DISMISS_DELAY_MS)
-        resolveOnce(selectedRoi)
-      })
-
-      overlayWindow.close()
-      overlayWindow = null
+      closeSelectionOverlayWindows()
+      void wait(OVERLAY_DISMISS_DELAY_MS).then(() => resolveOnce(selectedRoi))
     })
 
     ipcMain.once('overlay:cancelled', () => {
       cleanup()
-      if (!overlayWindow) return resolveOnce(null)
-
       closing = true
-
-      overlayWindow.once('closed', async () => {
-        await wait(OVERLAY_DISMISS_DELAY_MS)
-        resolveOnce(null)
-      })
-
-      overlayWindow.close()
-      overlayWindow = null
+      closeSelectionOverlayWindows()
+      void wait(OVERLAY_DISMISS_DELAY_MS).then(() => resolveOnce(null))
     })
 
-    overlayWindow?.once('closed', () => {
-      cleanup()
-      overlayWindow = null
-      if (!closing) resolveOnce(null)
+    selectionOverlayWindows.forEach((selectionWindow) => {
+      selectionWindow.once('closed', () => {
+        if (!closing && selectionOverlayWindows.length === 0) {
+          cleanup()
+          resolveOnce(null)
+        }
+      })
     })
   })
 })
@@ -359,6 +369,7 @@ function getDefaultContinuousRoi(bounds: Electron.Rectangle): Roi {
 }
 
 function closeOverlayWindow() {
+  closeSelectionOverlayWindows()
   if (!overlayWindow) return
   overlayWindow.close()
   overlayWindow = null
