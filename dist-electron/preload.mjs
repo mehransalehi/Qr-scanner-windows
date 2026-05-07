@@ -1,1 +1,20 @@
-"use strict";const e=require("electron");e.contextBridge.exposeInMainWorld("scannerApi",{selectRoi:()=>e.ipcRenderer.invoke("scanner:select-roi"),startContinuousOverlay:()=>e.ipcRenderer.invoke("scanner:start-continuous-overlay"),stopContinuousOverlay:()=>e.ipcRenderer.invoke("scanner:stop-continuous-overlay"),updateContinuousOverlayLastQr:n=>e.ipcRenderer.invoke("scanner:update-last-qr",n),onContinuousRoiChanged:n=>{const r=(s,o)=>n(o);return e.ipcRenderer.on("scanner:continuous-roi-changed",r),()=>e.ipcRenderer.removeListener("scanner:continuous-roi-changed",r)},onContinuousOverlayClosed:n=>{const r=()=>n();return e.ipcRenderer.on("scanner:continuous-overlay-closed",r),()=>e.ipcRenderer.removeListener("scanner:continuous-overlay-closed",r)},captureFullscreen:n=>e.ipcRenderer.invoke("scanner:capture-fullscreen",n),saveImage:n=>e.ipcRenderer.invoke("scanner:save-image",n)});
+"use strict";
+const electron = require("electron");
+electron.contextBridge.exposeInMainWorld("scannerApi", {
+  selectRoi: () => electron.ipcRenderer.invoke("scanner:select-roi"),
+  startContinuousOverlay: () => electron.ipcRenderer.invoke("scanner:start-continuous-overlay"),
+  stopContinuousOverlay: () => electron.ipcRenderer.invoke("scanner:stop-continuous-overlay"),
+  updateContinuousOverlayLastQr: (qr) => electron.ipcRenderer.invoke("scanner:update-last-qr", qr),
+  onContinuousRoiChanged: (callback) => {
+    const listener = (_event, roi) => callback(roi);
+    electron.ipcRenderer.on("scanner:continuous-roi-changed", listener);
+    return () => electron.ipcRenderer.removeListener("scanner:continuous-roi-changed", listener);
+  },
+  onContinuousOverlayClosed: (callback) => {
+    const listener = () => callback();
+    electron.ipcRenderer.on("scanner:continuous-overlay-closed", listener);
+    return () => electron.ipcRenderer.removeListener("scanner:continuous-overlay-closed", listener);
+  },
+  captureFullscreen: (roi) => electron.ipcRenderer.invoke("scanner:capture-fullscreen", roi),
+  saveImage: (dataUrl) => electron.ipcRenderer.invoke("scanner:save-image", dataUrl)
+});
