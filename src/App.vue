@@ -35,7 +35,7 @@ async function processFrame(roi: Roi) {
   if (qr === lastSentQr && now - lastSentAt < duplicateCooldownMs) return
   lastSentQr = qr
   lastSentAt = now
-  apiResponse.value = await postQr(qr)
+  apiResponse.value = await postQr(qr,previewImage.value)
 }
 
 async function scanOnce() {

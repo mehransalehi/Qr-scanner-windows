@@ -1,50 +1,45 @@
-import { ipcMain, screen, desktopCapturer, dialog, app, BrowserWindow } from "electron";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
-import fs from "node:fs/promises";
-const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
-process.env.APP_ROOT = path.join(__dirname$1, "..");
-const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
-const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
-const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
-process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
-let win;
-let overlayWindow = null;
-const OVERLAY_DISMISS_DELAY_MS = 80;
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+import { ipcMain as r, screen as x, desktopCapturer as R, dialog as E, app as l, BrowserWindow as m } from "electron";
+import { fileURLToPath as P } from "node:url";
+import h from "node:path";
+import _ from "node:fs/promises";
+const M = h.dirname(P(import.meta.url)), y = process.env.VITE_DEV_SERVER_URL;
+let p = null, t = null;
+const w = 80;
+function g(o) {
+  return new Promise((a) => setTimeout(a, o));
 }
-function createWindow() {
-  win = new BrowserWindow({
+function I() {
+  return l.isPackaged ? h.join(l.getAppPath(), "dist", "index.html") : h.join(process.env.APP_ROOT ?? "", "dist", "index.html");
+}
+function b() {
+  p = new m({
     width: 1100,
     height: 780,
-    icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
+    icon: h.join(l.getAppPath(), "dist", "electron-vite.svg"),
     webPreferences: {
-      preload: path.join(__dirname$1, "preload.mjs")
+      preload: h.join(M, "preload.mjs"),
+      contextIsolation: !0
     }
-  });
-  if (VITE_DEV_SERVER_URL) win.loadURL(VITE_DEV_SERVER_URL);
-  else win.loadFile(path.join(RENDERER_DIST, "index.html"));
+  }), y ? p.loadURL(y) : p.loadFile(I());
 }
-function createOverlayWindow(bounds) {
-  overlayWindow = new BrowserWindow({
-    x: bounds.x,
-    y: bounds.y,
-    width: bounds.width,
-    height: bounds.height,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    fullscreenable: false,
-    resizable: false,
-    movable: false,
+function L(o) {
+  t = new m({
+    x: o.x,
+    y: o.y,
+    width: o.width,
+    height: o.height,
+    frame: !1,
+    transparent: !0,
+    alwaysOnTop: !0,
+    skipTaskbar: !0,
+    fullscreenable: !1,
+    resizable: !1,
+    movable: !1,
     webPreferences: {
-      contextIsolation: false,
-      nodeIntegration: true
+      contextIsolation: !1,
+      nodeIntegration: !0
     }
-  });
-  const html = `<!doctype html><html><head><style>
+  }), t.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`<!doctype html><html><head><style>
     html,body{margin:0;width:100%;height:100%;overflow:hidden;cursor:crosshair;background:rgba(0,0,0,.45)}
     #box{position:absolute;border:2px solid #58a6ff;background:rgba(88,166,255,.15);display:none}
     #hint{position:fixed;top:16px;left:16px;color:white;font-family:Segoe UI,sans-serif;background:rgba(0,0,0,.5);padding:10px 12px;border-radius:8px}
@@ -52,118 +47,116 @@ function createOverlayWindow(bounds) {
   <script>
     const { ipcRenderer } = require('electron');
     let start=null; const box=document.getElementById('box');
-    const norm=(a,b)=>({x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),width:Math.abs(a.x-b.x),height:Math.abs(a.y-b.y)});
-    window.addEventListener('mousedown',e=>{start={x:e.clientX,y:e.clientY};box.style.display='block';});
-    window.addEventListener('mousemove',e=>{if(!start)return;const r=norm(start,{x:e.clientX,y:e.clientY});Object.assign(box.style,{left:r.x+'px',top:r.y+'px',width:r.width+'px',height:r.height+'px'});});
-    window.addEventListener('mouseup',e=>{if(!start)return;const r=norm(start,{x:e.clientX,y:e.clientY});ipcRenderer.send('overlay:selected',r);});
-    window.addEventListener('keydown',e=>{if(e.key==='Escape')ipcRenderer.send('overlay:cancelled');});
-  <\/script></body></html>`;
-  overlayWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+
+    const norm=(a,b)=>({
+      x:Math.min(a.x,b.x),
+      y:Math.min(a.y,b.y),
+      width:Math.abs(a.x-b.x),
+      height:Math.abs(a.y-b.y)
+    });
+
+    window.addEventListener('mousedown',e=>{
+      start={x:e.clientX,y:e.clientY};
+      box.style.display='block';
+    });
+
+    window.addEventListener('mousemove',e=>{
+      if(!start)return;
+      const r=norm(start,{x:e.clientX,y:e.clientY});
+      Object.assign(box.style,{
+        left:r.x+'px',
+        top:r.y+'px',
+        width:r.width+'px',
+        height:r.height+'px'
+      });
+    });
+
+    window.addEventListener('mouseup',e=>{
+      if(!start)return;
+      const r=norm(start,{x:e.clientX,y:e.clientY});
+      ipcRenderer.send('overlay:selected',r);
+    });
+
+    window.addEventListener('keydown',e=>{
+      if(e.key==='Escape') ipcRenderer.send('overlay:cancelled');
+    });
+  <\/script></body></html>`)}`);
 }
-ipcMain.handle("scanner:select-roi", async () => {
-  if (overlayWindow) {
-    overlayWindow.close();
-    overlayWindow = null;
-  }
-  const displays = screen.getAllDisplays();
-  const virtualBounds = displays.reduce(
-    (acc, d) => ({
-      x: Math.min(acc.x, d.bounds.x),
-      y: Math.min(acc.y, d.bounds.y),
-      width: Math.max(acc.x + acc.width, d.bounds.x + d.bounds.width) - Math.min(acc.x, d.bounds.x),
-      height: Math.max(acc.y + acc.height, d.bounds.y + d.bounds.height) - Math.min(acc.y, d.bounds.y)
+r.handle("scanner:select-roi", async () => {
+  t && (t.close(), t = null);
+  const o = x.getAllDisplays(), a = o.reduce(
+    (n, e) => ({
+      x: Math.min(n.x, e.bounds.x),
+      y: Math.min(n.y, e.bounds.y),
+      width: Math.max(n.x + n.width, e.bounds.x + e.bounds.width) - Math.min(n.x, e.bounds.x),
+      height: Math.max(n.y + n.height, e.bounds.y + e.bounds.height) - Math.min(n.y, e.bounds.y)
     }),
-    displays[0].bounds
+    o[0].bounds
   );
-  return new Promise((resolve) => {
-    let settled = false;
-    let closeInitiatedBySelectionFlow = false;
-    const resolveOnce = (value) => {
-      if (settled) return;
-      settled = true;
-      resolve(value);
+  return new Promise((n) => {
+    let e = !1, i = !1;
+    const s = (u) => {
+      e || (e = !0, n(u));
     };
-    createOverlayWindow(virtualBounds);
-    const cleanup = () => {
-      ipcMain.removeAllListeners("overlay:selected");
-      ipcMain.removeAllListeners("overlay:cancelled");
+    L(a);
+    const d = () => {
+      r.removeAllListeners("overlay:selected"), r.removeAllListeners("overlay:cancelled");
     };
-    ipcMain.once("overlay:selected", (_event, rect) => {
-      cleanup();
-      if (!overlayWindow) return resolveOnce(null);
-      closeInitiatedBySelectionFlow = true;
-      const b = overlayWindow.getBounds();
-      const selectedRoi = rect.width < 8 || rect.height < 8 ? null : { x: b.x + rect.x, y: b.y + rect.y, width: rect.width, height: rect.height };
-      const currentOverlay = overlayWindow;
-      currentOverlay.once("closed", async () => {
-        await wait(OVERLAY_DISMISS_DELAY_MS);
-        resolveOnce(selectedRoi);
-      });
-      currentOverlay.close();
-      overlayWindow = null;
-    });
-    ipcMain.once("overlay:cancelled", () => {
-      cleanup();
-      const currentOverlay = overlayWindow;
-      if (!currentOverlay) return resolveOnce(null);
-      closeInitiatedBySelectionFlow = true;
-      currentOverlay.once("closed", async () => {
-        await wait(OVERLAY_DISMISS_DELAY_MS);
-        resolveOnce(null);
-      });
-      currentOverlay.close();
-      overlayWindow = null;
-    });
-    overlayWindow == null ? void 0 : overlayWindow.once("closed", () => {
-      cleanup();
-      overlayWindow = null;
-      if (!closeInitiatedBySelectionFlow) resolveOnce(null);
+    r.once("overlay:selected", (u, c) => {
+      if (d(), !t) return s(null);
+      i = !0;
+      const f = t.getBounds(), v = c.width < 8 || c.height < 8 ? null : {
+        x: f.x + c.x,
+        y: f.y + c.y,
+        width: c.width,
+        height: c.height
+      };
+      t.once("closed", async () => {
+        await g(w), s(v);
+      }), t.close(), t = null;
+    }), r.once("overlay:cancelled", () => {
+      if (d(), !t) return s(null);
+      i = !0, t.once("closed", async () => {
+        await g(w), s(null);
+      }), t.close(), t = null;
+    }), t == null || t.once("closed", () => {
+      d(), t = null, i || s(null);
     });
   });
 });
-ipcMain.handle("scanner:capture-fullscreen", async (_event, roi) => {
-  const centerPoint = { x: roi.x + roi.width / 2, y: roi.y + roi.height / 2 };
-  const targetDisplay = screen.getDisplayNearestPoint(centerPoint);
-  const scaleFactor = targetDisplay.scaleFactor || 1;
-  const sources = await desktopCapturer.getSources({
+r.handle("scanner:capture-fullscreen", async (o, a) => {
+  const n = { x: a.x + a.width / 2, y: a.y + a.height / 2 }, e = x.getDisplayNearestPoint(n), i = e.scaleFactor || 1, s = await R.getSources({
     types: ["screen"],
     thumbnailSize: {
-      width: Math.floor(targetDisplay.bounds.width * scaleFactor),
-      height: Math.floor(targetDisplay.bounds.height * scaleFactor)
+      width: Math.floor(e.bounds.width * i),
+      height: Math.floor(e.bounds.height * i)
     },
-    fetchWindowIcons: false
-  });
-  const source = sources.find((s) => s.display_id === String(targetDisplay.id)) || sources[0];
-  if (!source) throw new Error("No screen source available");
+    fetchWindowIcons: !1
+  }), d = s.find((u) => u.display_id === String(e.id)) || s[0];
+  if (!d) throw new Error("No screen source available");
   return {
-    imageDataUrl: source.thumbnail.toDataURL(),
-    displayBounds: targetDisplay.bounds,
-    scaleFactor
+    imageDataUrl: d.thumbnail.toDataURL(),
+    displayBounds: e.bounds,
+    scaleFactor: i
   };
 });
-ipcMain.handle("scanner:save-image", async (_event, base64Image) => {
-  const { canceled, filePath } = await dialog.showSaveDialog({
+r.handle("scanner:save-image", async (o, a) => {
+  const { canceled: n, filePath: e } = await E.showSaveDialog({
     title: "Save Captured Image",
     defaultPath: `qr-capture-${Date.now()}.png`,
     filters: [{ name: "PNG Image", extensions: ["png"] }]
   });
-  if (canceled || !filePath) return { canceled: true };
-  const normalized = base64Image.replace(/^data:image\/png;base64,/, "");
-  await fs.writeFile(filePath, Buffer.from(normalized, "base64"));
-  return { canceled: false, filePath };
+  if (n || !e) return { canceled: !0 };
+  const i = a.replace(/^data:image\/png;base64,/, "");
+  return await _.writeFile(e, Buffer.from(i, "base64")), { canceled: !1, filePath: e };
 });
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-    win = null;
-  }
+l.on("window-all-closed", () => {
+  process.platform !== "darwin" && (l.quit(), p = null);
 });
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+l.on("activate", () => {
+  m.getAllWindows().length === 0 && b();
 });
-app.whenReady().then(createWindow);
+l.whenReady().then(b);
 export {
-  MAIN_DIST,
-  RENDERER_DIST,
-  VITE_DEV_SERVER_URL
+  y as VITE_DEV_SERVER_URL
 };

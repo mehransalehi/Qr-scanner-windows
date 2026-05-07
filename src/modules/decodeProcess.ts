@@ -10,15 +10,19 @@ type ZxingBrowserReader = {
 let zxingReaderPromise: Promise<ZxingBrowserReader | null> | null = null
 
 async function getZxingReader(): Promise<ZxingBrowserReader | null> {
+  if (typeof window === 'undefined') return null
+
   if (zxingReaderPromise) return zxingReaderPromise
 
-  const moduleName = '@zxing/browser'
-  zxingReaderPromise = import(/* @vite-ignore */ moduleName)
+  zxingReaderPromise = import('@zxing/browser')
     .then((mod) => {
       const ReaderCtor = mod.BrowserQRCodeReader ?? mod.BrowserMultiFormatReader
       return ReaderCtor ? new ReaderCtor() : null
     })
-    .catch(() => null)
+    .catch((err) => {
+      console.error('ZXing load failed:', err)
+      return null
+    })
 
   return zxingReaderPromise
 }

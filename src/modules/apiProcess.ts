@@ -1,13 +1,22 @@
-export async function postQr(qr: string): Promise<string> {
+export async function postQr(qr: string, data: string): Promise<string> {
   try {
-    const res = await fetch('http://localhost:3000/qr', {
+    const res = await fetch('https://qr-api.dreamteam101.workers.dev/qr', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ qr }),
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': '5aLAHNvL8maN3byq9VsiGhR9qqZ9AULL', // 🔐 add this
+      },
+      body: JSON.stringify({
+        image: data,        // ✅ match API
+        decoded: qr,    // ✅ match API
+      }),
     })
+
     const text = await res.text()
+    console.log(res.status);
     return `HTTP ${res.status}: ${text || 'OK'}`
   } catch (error) {
+    console.log(error instanceof Error ? error.message : String(error));
     return `API Error: ${error instanceof Error ? error.message : String(error)}`
   }
 }
