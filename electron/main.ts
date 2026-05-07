@@ -250,17 +250,19 @@ function createContinuousOverlayWindow(initialRoi: Roi) {
     #scanner{position:absolute;inset:0;filter:drop-shadow(0 10px 24px rgba(0,0,0,.35))}
     #scanBox{position:absolute;left:0;top:0;width:100%;height:calc(100% - ${CONTINUOUS_BAR_HEIGHT}px);border:2px solid #58a6ff;background:rgba(88,166,255,.5);cursor:move;-webkit-app-region:drag}
     #scanBox::after{content:'';position:absolute;inset:10px;border:1px dashed rgba(255,255,255,.75);border-radius:8px;pointer-events:none}
-    #bar{position:absolute;left:0;bottom:0;width:100%;height:${CONTINUOUS_BAR_HEIGHT}px;display:flex;align-items:center;gap:8px;padding:5px 7px;border:1px solid rgba(88,166,255,.75);border-top:0;border-radius:0 0 10px 10px;background:rgba(10,20,36,.92);color:white;font-size:12px;cursor:move;-webkit-app-region:drag}
+    #bar{position:absolute;left:0;bottom:0;width:100%;height:${CONTINUOUS_BAR_HEIGHT}px;display:flex;align-items:center;gap:8px;padding:5px 7px;border:1px solid rgba(88,166,255,.75);border-top:0;border-radius:0 0 10px 10px;background:rgba(10,20,36,.92);color:white;font-size:12px;-webkit-app-region:no-drag}
     #status{font-weight:600;margin-right:auto;letter-spacing:.2px;white-space:nowrap}
-    button{border:1px solid rgba(255,255,255,.22);border-radius:6px;background:rgba(255,255,255,.12);color:white;padding:4px 8px;font:inherit;cursor:pointer;-webkit-app-region:no-drag}
+    button{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:24px;border:1px solid rgba(255,255,255,.22);border-radius:6px;background:rgba(255,255,255,.12);color:white;padding:0 7px;font:inherit;line-height:1;cursor:pointer;-webkit-app-region:no-drag}
     button:hover{background:rgba(255,255,255,.22)}
-    #move{cursor:grab;-webkit-app-region:drag} #move:active{cursor:grabbing}
-    .handle{position:absolute;width:18px;height:18px;background:#58a6ff;border:2px solid white;border-radius:50%;z-index:5;-webkit-app-region:no-drag}
-    .nw{left:-2px;top:-2px;cursor:nwse-resize}.ne{right:-2px;top:-2px;cursor:nesw-resize}.sw{left:-2px;bottom:${CONTINUOUS_BAR_HEIGHT - 2}px;cursor:nesw-resize}.se{right:-2px;bottom:${CONTINUOUS_BAR_HEIGHT - 2}px;cursor:nwse-resize}
+    .handle{position:absolute;z-index:5;background:transparent;-webkit-app-region:no-drag}
+    .n{left:12px;right:12px;top:0;height:10px;cursor:ns-resize}.s{left:12px;right:12px;bottom:${CONTINUOUS_BAR_HEIGHT - 5}px;height:10px;cursor:ns-resize}
+    .w{left:0;top:12px;bottom:${CONTINUOUS_BAR_HEIGHT + 12}px;width:10px;cursor:ew-resize}.e{right:0;top:12px;bottom:${CONTINUOUS_BAR_HEIGHT + 12}px;width:10px;cursor:ew-resize}
+    .nw{left:0;top:0;width:16px;height:16px;cursor:nwse-resize}.ne{right:0;top:0;width:16px;height:16px;cursor:nesw-resize}.sw{left:0;bottom:${CONTINUOUS_BAR_HEIGHT - 5}px;width:16px;height:16px;cursor:nesw-resize}.se{right:0;bottom:${CONTINUOUS_BAR_HEIGHT - 5}px;width:16px;height:16px;cursor:nwse-resize}
   </style></head><body>
     <div id="scanner">
       <div id="scanBox"></div>
-      <div id="bar"><span id="status">Scanning</span><button id="copy" type="button">Copy</button><button id="move" type="button" title="Drag to move">Move</button><button id="close" type="button">Close</button></div>
+      <div id="bar"><span id="status">Scanning</span><button id="copy" type="button" title="Copy last QR" aria-label="Copy last QR">⧉</button><button id="close" type="button" title="Close" aria-label="Close">X</button></div>
+      <div class="handle n" data-handle="n"></div><div class="handle e" data-handle="e"></div><div class="handle s" data-handle="s"></div><div class="handle w" data-handle="w"></div>
       <div class="handle nw" data-handle="nw"></div><div class="handle ne" data-handle="ne"></div><div class="handle sw" data-handle="sw"></div><div class="handle se" data-handle="se"></div>
     </div>
     <script>

@@ -26,7 +26,7 @@ const apiResponse = ref('—')
 const previewImage = ref('')
 const errorMessage = ref('')
 
-const fps = 5
+const scanDelayMs = 200 // SCAN_DELAY: change this value to adjust the delay between continuous scan attempts.
 const duplicateCooldownMs = 4000
 let loopTimer: number | null = null
 let activeRoi: Roi | null = null
@@ -97,7 +97,7 @@ async function startContinuousScan() {
     } catch (e) {
       errorMessage.value = e instanceof Error ? e.message : String(e)
     }
-    loopTimer = window.setTimeout(tick, 1000 / fps)
+    loopTimer = window.setTimeout(tick, scanDelayMs)
   }
 
   void tick()
