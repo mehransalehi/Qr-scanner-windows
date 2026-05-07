@@ -29,6 +29,10 @@ function createWindow() {
       contextIsolation: true
     }
   });
+  win.on("closed", () => {
+    closeOverlayWindow();
+    win = null;
+  });
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
   } else {
