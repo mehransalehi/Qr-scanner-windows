@@ -3,7 +3,18 @@ import { onBeforeUnmount, ref } from 'vue'
 import ScannerControls from './components/ScannerControls.vue'
 import ScannerStatus from './components/ScannerStatus.vue'
 import PreviewPanel from './components/PreviewPanel.vue'
-import { captureRoiImage, saveImage, selectRoi, withPadding, type Roi } from './modules/screenCapture'
+import {
+  captureRoiImage,
+  onContinuousOverlayClosed,
+  onContinuousRoiChanged,
+  saveImage,
+  selectRoi,
+  startContinuousOverlay,
+  stopContinuousOverlay,
+  updateContinuousOverlayLastQr,
+  withPadding,
+  type Roi,
+} from './modules/screenCapture'
 import { decodeQrFromDataUrl, isDecoderAvailable } from './modules/decodeProcess'
 import { postQr } from './modules/apiProcess'
 
@@ -15,12 +26,14 @@ const apiResponse = ref('—')
 const previewImage = ref('')
 const errorMessage = ref('')
 
-const fps = 5
+const scanDelayMs = 200 // SCAN_DELAY: change this value to adjust the delay between continuous scan attempts.
 const duplicateCooldownMs = 4000
 let loopTimer: number | null = null
 let activeRoi: Roi | null = null
 let lastSentQr = ''
 let lastSentAt = 0
+let removeContinuousRoiListener: (() => void) | null = null
+let removeContinuousClosedListener: (() => void) | null = null
 
 const decoderAvailable = isDecoderAvailable()
 
@@ -30,6 +43,7 @@ async function processFrame(roi: Roi) {
   const qr = await decodeQrFromDataUrl(roiImage)
   if (!qr) return
   lastQr.value = qr
+  await updateContinuousOverlayLastQr(qr)
 
   const now = Date.now()
   if (qr === lastSentQr && now - lastSentAt < duplicateCooldownMs) return
@@ -57,11 +71,23 @@ async function scanOnce() {
 async function startContinuousScan() {
   stopScan()
   errorMessage.value = ''
-  state.value = 'Selecting region'
-  const roi = await selectRoi()
-  if (!roi) return (state.value = 'Idle')
 
-  activeRoi = withPadding(roi)
+  try {
+    activeRoi = await startContinuousOverlay()
+  } catch (e) {
+    errorMessage.value = e instanceof Error ? e.message : String(e)
+    state.value = 'Idle'
+    return
+  }
+
+  removeContinuousRoiListener = onContinuousRoiChanged((roi) => {
+    activeRoi = roi
+  })
+  removeContinuousClosedListener = onContinuousOverlayClosed(() => {
+    stopScan(false)
+  })
+
+  if (lastQr.value !== '—') await updateContinuousOverlayLastQr(lastQr.value)
   state.value = 'Continuous scanning'
 
   const tick = async () => {
@@ -71,16 +97,21 @@ async function startContinuousScan() {
     } catch (e) {
       errorMessage.value = e instanceof Error ? e.message : String(e)
     }
-    loopTimer = window.setTimeout(tick, 1000 / fps)
+    loopTimer = window.setTimeout(tick, scanDelayMs)
   }
 
   void tick()
 }
 
-function stopScan() {
+function stopScan(closeOverlay = true) {
   if (loopTimer) window.clearTimeout(loopTimer)
   loopTimer = null
   activeRoi = null
+  removeContinuousRoiListener?.()
+  removeContinuousClosedListener?.()
+  removeContinuousRoiListener = null
+  removeContinuousClosedListener = null
+  if (closeOverlay) void stopContinuousOverlay()
   if (state.value === 'Continuous scanning' || state.value === 'Scanning once') state.value = 'Stopped'
 }
 
@@ -94,7 +125,10 @@ function onEsc(e: KeyboardEvent) {
   if (e.key === 'Escape') stopScan()
 }
 window.addEventListener('keydown', onEsc)
-onBeforeUnmount(() => window.removeEventListener('keydown', onEsc))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onEsc)
+  stopScan()
+})
 </script>
 
 <template>
