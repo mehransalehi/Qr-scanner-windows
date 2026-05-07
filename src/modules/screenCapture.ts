@@ -6,6 +6,26 @@ export async function selectRoi(): Promise<Roi | null> {
   return window.scannerApi.selectRoi()
 }
 
+export async function startContinuousOverlay(): Promise<Roi> {
+  return window.scannerApi.startContinuousOverlay()
+}
+
+export async function stopContinuousOverlay(): Promise<void> {
+  return window.scannerApi.stopContinuousOverlay()
+}
+
+export async function updateContinuousOverlayLastQr(qr: string): Promise<void> {
+  return window.scannerApi.updateContinuousOverlayLastQr(qr)
+}
+
+export function onContinuousRoiChanged(callback: (roi: Roi) => void) {
+  return window.scannerApi.onContinuousRoiChanged(callback)
+}
+
+export function onContinuousOverlayClosed(callback: () => void) {
+  return window.scannerApi.onContinuousOverlayClosed(callback)
+}
+
 export function withPadding(roi: Roi): Roi {
   return {
     x: roi.x - ROI_PADDING,
