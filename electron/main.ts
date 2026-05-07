@@ -208,45 +208,55 @@ ipcMain.handle('scanner:select-roi', async (): Promise<Roi | null> => {
 })
 
 
-function createContinuousOverlayWindow(bounds: Electron.Rectangle, initialRoi: Roi) {
-  overlayWindow = new BrowserWindow({
+function continuousOverlayRoi(): Roi | null {
+  if (!overlayWindow) return null
+  const bounds = overlayWindow.getBounds()
+  return {
     x: bounds.x,
     y: bounds.y,
     width: bounds.width,
-    height: bounds.height,
+    height: Math.max(1, bounds.height - CONTINUOUS_BAR_HEIGHT),
+  }
+}
+
+function sendContinuousOverlayRoi() {
+  const roi = continuousOverlayRoi()
+  if (roi) win?.webContents.send('scanner:continuous-roi-changed', roi)
+}
+
+function createContinuousOverlayWindow(initialRoi: Roi) {
+  overlayWindow = new BrowserWindow({
+    x: initialRoi.x,
+    y: initialRoi.y,
+    width: initialRoi.width,
+    height: initialRoi.height + CONTINUOUS_BAR_HEIGHT,
+    minWidth: MIN_CONTINUOUS_ROI_SIZE,
+    minHeight: MIN_CONTINUOUS_ROI_SIZE + CONTINUOUS_BAR_HEIGHT,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
     skipTaskbar: true,
     fullscreenable: false,
-    resizable: false,
-    movable: false,
+    resizable: true,
+    movable: true,
     webPreferences: {
       contextIsolation: false,
       nodeIntegration: true,
     },
   })
 
-  const localInitial = {
-    x: initialRoi.x - bounds.x,
-    y: initialRoi.y - bounds.y,
-    width: initialRoi.width,
-    height: initialRoi.height,
-  }
-
   const html = `<!doctype html><html><head><style>
     html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;font-family:Segoe UI,sans-serif;user-select:none}
-    body{pointer-events:none}
-    #scanner{position:absolute;pointer-events:auto;filter:drop-shadow(0 10px 24px rgba(0,0,0,.35))}
-    #scanBox{position:absolute;left:0;top:0;border:2px solid #58a6ff;background:rgba(88,166,255,.5);cursor:move}
+    #scanner{position:absolute;inset:0;filter:drop-shadow(0 10px 24px rgba(0,0,0,.35))}
+    #scanBox{position:absolute;left:0;top:0;width:100%;height:calc(100% - ${CONTINUOUS_BAR_HEIGHT}px);border:2px solid #58a6ff;background:rgba(88,166,255,.5);cursor:move;-webkit-app-region:drag}
     #scanBox::after{content:'';position:absolute;inset:10px;border:1px dashed rgba(255,255,255,.75);border-radius:8px;pointer-events:none}
-    #bar{position:absolute;left:0;height:${CONTINUOUS_BAR_HEIGHT}px;display:flex;align-items:center;gap:8px;padding:5px 7px;border:1px solid rgba(88,166,255,.75);border-top:0;border-radius:0 0 10px 10px;background:rgba(10,20,36,.92);color:white;font-size:12px;cursor:move}
-    #status{font-weight:600;margin-right:auto;letter-spacing:.2px}
-    button{border:1px solid rgba(255,255,255,.22);border-radius:6px;background:rgba(255,255,255,.12);color:white;padding:4px 8px;font:inherit;cursor:pointer}
+    #bar{position:absolute;left:0;bottom:0;width:100%;height:${CONTINUOUS_BAR_HEIGHT}px;display:flex;align-items:center;gap:8px;padding:5px 7px;border:1px solid rgba(88,166,255,.75);border-top:0;border-radius:0 0 10px 10px;background:rgba(10,20,36,.92);color:white;font-size:12px;cursor:move;-webkit-app-region:drag}
+    #status{font-weight:600;margin-right:auto;letter-spacing:.2px;white-space:nowrap}
+    button{border:1px solid rgba(255,255,255,.22);border-radius:6px;background:rgba(255,255,255,.12);color:white;padding:4px 8px;font:inherit;cursor:pointer;-webkit-app-region:no-drag}
     button:hover{background:rgba(255,255,255,.22)}
-    #move{cursor:grab} #move:active{cursor:grabbing}
-    .handle{position:absolute;width:14px;height:14px;background:#58a6ff;border:2px solid white;border-radius:50%;pointer-events:auto}
-    .nw{left:-7px;top:-7px;cursor:nwse-resize}.ne{right:-7px;top:-7px;cursor:nesw-resize}.sw{left:-7px;bottom:${CONTINUOUS_BAR_HEIGHT - 7}px;cursor:nesw-resize}.se{right:-7px;bottom:${CONTINUOUS_BAR_HEIGHT - 7}px;cursor:nwse-resize}
+    #move{cursor:grab;-webkit-app-region:drag} #move:active{cursor:grabbing}
+    .handle{position:absolute;width:18px;height:18px;background:#58a6ff;border:2px solid white;border-radius:50%;z-index:5;-webkit-app-region:no-drag}
+    .nw{left:-2px;top:-2px;cursor:nwse-resize}.ne{right:-2px;top:-2px;cursor:nesw-resize}.sw{left:-2px;bottom:${CONTINUOUS_BAR_HEIGHT - 2}px;cursor:nesw-resize}.se{right:-2px;bottom:${CONTINUOUS_BAR_HEIGHT - 2}px;cursor:nwse-resize}
   </style></head><body>
     <div id="scanner">
       <div id="scanBox"></div>
@@ -255,104 +265,79 @@ function createContinuousOverlayWindow(bounds: Electron.Rectangle, initialRoi: R
     </div>
     <script>
       const { ipcRenderer, clipboard } = require('electron');
-      const scanner = document.getElementById('scanner');
-      const scanBox = document.getElementById('scanBox');
-      const bar = document.getElementById('bar');
       const copy = document.getElementById('copy');
       const closeButton = document.getElementById('close');
-      let rect = ${JSON.stringify(localInitial)};
       let latestQr = '';
-      let drag = null;
-      let ignoringMouse = true;
-      const minSize = ${MIN_CONTINUOUS_ROI_SIZE};
-      const barHeight = ${CONTINUOUS_BAR_HEIGHT};
-      const bounds = { width: window.innerWidth, height: window.innerHeight };
+      let resize = null;
+      const minWidth = ${MIN_CONTINUOUS_ROI_SIZE};
+      const minHeight = ${MIN_CONTINUOUS_ROI_SIZE + CONTINUOUS_BAR_HEIGHT};
 
-      function setMouseIgnored(ignore) {
-        if (ignore === ignoringMouse) return;
-        ignoringMouse = ignore;
-        ipcRenderer.send('continuous-overlay:set-ignore-mouse-events', ignore);
-      }
-
-      function apply(send = true) {
-        rect.width = Math.max(minSize, rect.width);
-        rect.height = Math.max(minSize, rect.height);
-        rect.x = Math.min(Math.max(0, rect.x), bounds.width - rect.width);
-        rect.y = Math.min(Math.max(0, rect.y), bounds.height - rect.height - barHeight);
-        scanner.style.left = rect.x + 'px';
-        scanner.style.top = rect.y + 'px';
-        scanner.style.width = rect.width + 'px';
-        scanner.style.height = rect.height + barHeight + 'px';
-        scanBox.style.width = rect.width + 'px';
-        scanBox.style.height = rect.height + 'px';
-        bar.style.top = rect.height + 'px';
-        bar.style.width = rect.width + 'px';
-        if (send) ipcRenderer.send('continuous-overlay:roi-changed', rect);
-      }
-
-      function beginDrag(e, mode) {
+      function beginResize(e, edge) {
         e.preventDefault();
         e.stopPropagation();
-        setMouseIgnored(false);
-        drag = { mode, startX: e.clientX, startY: e.clientY, start: { ...rect } };
+        resize = {
+          edge,
+          startX: e.screenX,
+          startY: e.screenY,
+          bounds: {
+            x: window.screenX,
+            y: window.screenY,
+            width: window.outerWidth,
+            height: window.outerHeight,
+          },
+        };
       }
 
-      function updateDrag(e) {
-        if (!drag) return;
-        const dx = e.clientX - drag.startX;
-        const dy = e.clientY - drag.startY;
-        const start = drag.start;
-        if (drag.mode === 'move') {
-          rect.x = start.x + dx;
-          rect.y = start.y + dy;
-        } else {
-          if (drag.mode.includes('e')) rect.width = start.width + dx;
-          if (drag.mode.includes('s')) rect.height = start.height + dy;
-          if (drag.mode.includes('w')) {
-            const nextWidth = start.width - dx;
-            if (nextWidth >= minSize) { rect.x = start.x + dx; rect.width = nextWidth; }
-          }
-          if (drag.mode.includes('n')) {
-            const nextHeight = start.height - dy;
-            if (nextHeight >= minSize) { rect.y = start.y + dy; rect.height = nextHeight; }
-          }
+      function updateResize(e) {
+        if (!resize) return;
+        const dx = e.screenX - resize.startX;
+        const dy = e.screenY - resize.startY;
+        const next = { ...resize.bounds };
+        if (resize.edge.includes('e')) next.width = resize.bounds.width + dx;
+        if (resize.edge.includes('s')) next.height = resize.bounds.height + dy;
+        if (resize.edge.includes('w')) {
+          next.x = resize.bounds.x + dx;
+          next.width = resize.bounds.width - dx;
         }
-        apply();
+        if (resize.edge.includes('n')) {
+          next.y = resize.bounds.y + dy;
+          next.height = resize.bounds.height - dy;
+        }
+        if (next.width < minWidth) {
+          if (resize.edge.includes('w')) next.x -= minWidth - next.width;
+          next.width = minWidth;
+        }
+        if (next.height < minHeight) {
+          if (resize.edge.includes('n')) next.y -= minHeight - next.height;
+          next.height = minHeight;
+        }
+        ipcRenderer.send('continuous-overlay:set-bounds', next);
       }
 
-      scanner.addEventListener('mouseenter', () => setMouseIgnored(false));
-      scanner.addEventListener('mouseleave', () => { if (!drag) setMouseIgnored(true); });
-      scanBox.addEventListener('mousedown', e => beginDrag(e, 'move'));
-      bar.addEventListener('mousedown', e => beginDrag(e, 'move'));
-      document.getElementById('move').addEventListener('mousedown', e => beginDrag(e, 'move'));
       document.querySelectorAll('.handle').forEach(handle => {
-        handle.addEventListener('mousedown', e => beginDrag(e, handle.dataset.handle));
+        handle.addEventListener('mousedown', e => beginResize(e, handle.dataset.handle));
       });
-      window.addEventListener('mousemove', e => {
-        if (!drag) setMouseIgnored(!e.target.closest?.('#scanner'));
-        updateDrag(e);
-      });
-      window.addEventListener('mouseup', e => {
-        drag = null;
-        setMouseIgnored(!e.target.closest?.('#scanner'));
-      });
+      window.addEventListener('mousemove', updateResize);
+      window.addEventListener('mouseup', () => { resize = null; });
       window.addEventListener('keydown', e => { if (e.key === 'Escape') ipcRenderer.send('continuous-overlay:closed'); });
-      document.querySelectorAll('button').forEach(button => {
-        button.addEventListener('mousedown', e => e.stopPropagation());
+      closeButton.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        ipcRenderer.send('continuous-overlay:closed');
       });
-      closeButton.addEventListener('click', () => ipcRenderer.send('continuous-overlay:closed'));
       copy.addEventListener('click', e => {
+        e.preventDefault();
         e.stopPropagation();
         if (latestQr) clipboard.writeText(latestQr);
       });
       ipcRenderer.on('continuous-overlay:last-qr', (_event, qr) => { latestQr = qr || ''; });
-      apply(false);
-      ipcRenderer.send('continuous-overlay:roi-changed', rect);
+      ipcRenderer.send('continuous-overlay:roi-changed');
     </script>
   </body></html>`
 
   overlayWindow.setContentProtection(true)
-  overlayWindow.setIgnoreMouseEvents(true, { forward: true })
+  overlayWindow.on('move', sendContinuousOverlayRoi)
+  overlayWindow.on('resize', sendContinuousOverlayRoi)
   overlayWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
 }
 
@@ -376,7 +361,7 @@ ipcMain.handle('scanner:start-continuous-overlay', async (): Promise<Roi> => {
   closeOverlayWindow()
   const virtualBounds = getVirtualBounds()
   const initialRoi = getDefaultContinuousRoi(virtualBounds)
-  createContinuousOverlayWindow(virtualBounds, initialRoi)
+  createContinuousOverlayWindow(initialRoi)
   return initialRoi
 })
 
@@ -388,20 +373,31 @@ ipcMain.handle('scanner:update-last-qr', async (_event, qr: string) => {
   overlayWindow?.webContents.send('continuous-overlay:last-qr', qr)
 })
 
-ipcMain.on('continuous-overlay:roi-changed', (_event, rect: Roi) => {
-  if (!overlayWindow || !win) return
-  const bounds = overlayWindow.getBounds()
-  const roi = {
-    x: bounds.x + Math.round(rect.x),
-    y: bounds.y + Math.round(rect.y),
-    width: Math.round(rect.width),
-    height: Math.round(rect.height),
-  }
-  win.webContents.send('scanner:continuous-roi-changed', roi)
+ipcMain.on('continuous-overlay:roi-changed', () => {
+  sendContinuousOverlayRoi()
 })
 
-ipcMain.on('continuous-overlay:set-ignore-mouse-events', (_event, ignore: boolean) => {
-  overlayWindow?.setIgnoreMouseEvents(ignore, { forward: true })
+ipcMain.on('continuous-overlay:set-bounds', (_event, requestedBounds: Electron.Rectangle) => {
+  if (!overlayWindow) return
+  const virtualBounds = getVirtualBounds()
+  const width = Math.min(
+    virtualBounds.width,
+    Math.max(MIN_CONTINUOUS_ROI_SIZE, Math.round(requestedBounds.width)),
+  )
+  const height = Math.min(
+    virtualBounds.height,
+    Math.max(MIN_CONTINUOUS_ROI_SIZE + CONTINUOUS_BAR_HEIGHT, Math.round(requestedBounds.height)),
+  )
+  const x = Math.min(
+    Math.max(virtualBounds.x, Math.round(requestedBounds.x)),
+    virtualBounds.x + virtualBounds.width - width,
+  )
+  const y = Math.min(
+    Math.max(virtualBounds.y, Math.round(requestedBounds.y)),
+    virtualBounds.y + virtualBounds.height - height,
+  )
+  overlayWindow.setBounds({ x, y, width, height })
+  sendContinuousOverlayRoi()
 })
 
 ipcMain.on('continuous-overlay:closed', () => {
