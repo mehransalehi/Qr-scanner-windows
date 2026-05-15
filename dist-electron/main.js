@@ -139,7 +139,7 @@ r.handle("scanner:select-roi", async () => (y(), new Promise((t) => {
     });
   });
 })));
-function T() {
+function B() {
   if (!o) return null;
   const t = o.getBounds();
   return {
@@ -150,11 +150,12 @@ function T() {
   };
 }
 function f() {
-  const t = T();
+  const t = B();
   t && (d == null || d.webContents.send("scanner:continuous-roi-changed", t));
 }
-function A(t) {
+function T(t) {
   o = new w({
+    autoHideMenuBar: !0,
     x: t.x,
     y: t.y,
     width: t.width,
@@ -266,7 +267,7 @@ function A(t) {
   </body></html>`;
   o.setContentProtection(!0), o.on("move", f), o.on("resize", f), o.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(e)}`);
 }
-function B(t) {
+function A(t) {
   const e = Math.min(C, t.width, t.height - s);
   return {
     x: t.x + Math.floor((t.width - e) / 2),
@@ -280,8 +281,8 @@ function y() {
 }
 r.handle("scanner:start-continuous-overlay", async () => {
   y();
-  const t = I(), e = B(t);
-  return A(e), e;
+  const t = I(), e = A(t);
+  return T(e), e;
 });
 r.handle("scanner:stop-continuous-overlay", async () => {
   y();

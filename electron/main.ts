@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, desktopCapturer, screen, dialog } from 'el
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
+// import { Menu } from 'electron'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -37,6 +38,7 @@ function getRendererIndexPath() {
 }
 
 function createWindow() {
+  // Menu.setApplicationMenu(null)
   win = new BrowserWindow({
     width: 1100,
     height: 780,
@@ -241,6 +243,7 @@ function sendContinuousOverlayRoi() {
 
 function createContinuousOverlayWindow(initialRoi: Roi) {
   overlayWindow = new BrowserWindow({
+    autoHideMenuBar: true,
     x: initialRoi.x,
     y: initialRoi.y,
     width: initialRoi.width,

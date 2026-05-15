@@ -1,6 +1,6 @@
 export async function postQr(qr: string, data: string): Promise<string> {
   try {
-    const res = await fetch('https://qr-api.dreamteam101.workers.dev/qr', {
+    const res = await fetch('http://62.238.46.7/api/qr', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
