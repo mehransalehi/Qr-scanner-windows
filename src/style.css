@@ -9,15 +9,20 @@ body { margin: 0; min-width: 320px; background: #0f1724; }
 #app { max-width: 980px; margin: 0 auto; padding: 24px; }
 
 .app h1 { margin: 0 0 20px; }
-.controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; align-items: center; }
+input,
 button {
   border: 1px solid #2f4667;
   background: #193052;
   color: #ecf4ff;
   padding: 10px 14px;
   border-radius: 8px;
-  cursor: pointer;
 }
+input {
+  min-width: 260px;
+  cursor: text;
+}
+button { cursor: pointer; }
 button:hover { background: #244372; }
 button:disabled { opacity: .5; cursor: not-allowed; }
 button.danger { background: #6a2127; border-color: #8f3139; }
@@ -47,4 +52,36 @@ button.danger { background: #6a2127; border-color: #8f3139; }
   height: 100%;
   object-fit: contain;
   max-height: 420px;
+}
+
+.server-control {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.tooltip {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 10;
+  width: max-content;
+  max-width: 320px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .35);
+  font-size: 13px;
+}
+
+.tooltip.success {
+  border: 1px solid #2d8f5d;
+  background: #123c2a;
+  color: #b9f7d6;
+}
+
+.tooltip.error {
+  border: 1px solid #8f3139;
+  background: #3c1218;
+  color: #ffd0d0;
 }

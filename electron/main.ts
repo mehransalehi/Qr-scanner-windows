@@ -1,8 +1,7 @@
-import { app, BrowserWindow, ipcMain, desktopCapturer, screen, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, desktopCapturer, screen, dialog, Menu } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
-// import { Menu } from 'electron'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -52,6 +51,18 @@ function createWindow() {
   win.on('closed', () => {
     closeOverlayWindow()
     win = null
+  })
+
+  win.webContents.on('context-menu', (_event, params) => {
+    if (!params.isEditable) return
+
+    Menu.buildFromTemplate([
+      { role: 'cut' },
+      { role: 'copy' },
+      { role: 'paste' },
+      { type: 'separator' },
+      { role: 'selectAll' },
+    ]).popup({ window: win ?? undefined })
   })
 
   if (VITE_DEV_SERVER_URL) {
