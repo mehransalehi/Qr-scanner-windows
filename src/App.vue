@@ -16,7 +16,7 @@ import {
   type Roi,
 } from './modules/screenCapture'
 import { decodeQrFromDataUrl, isDecoderAvailable } from './modules/decodeProcess'
-import { postQr } from './modules/apiProcess'
+import { checkServer, postQr, parseServerUrl } from './modules/apiProcess'
 
 type ScannerState = 'Idle' | 'Selecting region' | 'Scanning once' | 'Continuous scanning' | 'Stopped'
 
@@ -25,6 +25,10 @@ const lastQr = ref('—')
 const apiResponse = ref('—')
 const previewImage = ref('')
 const errorMessage = ref('')
+const serverUrl = ref(localStorage.getItem('qr-scanner-server-url') || '')
+const tooltipMessage = ref('')
+const tooltipType = ref<'success' | 'error'>('success')
+let tooltipTimer: number | null = null
 
 const scanDelayMs = 200 // SCAN_DELAY: change this value to adjust the delay between continuous scan attempts.
 const duplicateCooldownMs = 4000
@@ -34,6 +38,36 @@ let lastSentQr = ''
 let lastSentAt = 0
 let removeContinuousRoiListener: (() => void) | null = null
 let removeContinuousClosedListener: (() => void) | null = null
+
+function showTooltip(message: string, type: 'success' | 'error' = 'success') {
+  tooltipMessage.value = message
+  tooltipType.value = type
+  if (tooltipTimer) window.clearTimeout(tooltipTimer)
+  tooltipTimer = window.setTimeout(() => {
+    tooltipMessage.value = ''
+    tooltipTimer = null
+  }, 3000)
+}
+
+function validateServerUrl() {
+  try {
+    parseServerUrl(serverUrl.value)
+    return true
+  } catch {
+    showTooltip('Server must enter.', 'error')
+    return false
+  }
+}
+
+function onServerUrlUpdate(value: string) {
+  serverUrl.value = value
+  localStorage.setItem('qr-scanner-server-url', value)
+}
+
+async function onCheckServer() {
+  const result = await checkServer(serverUrl.value)
+  showTooltip(result.message, result.ok ? 'success' : 'error')
+}
 
 const decoderAvailable = isDecoderAvailable()
 
@@ -49,12 +83,13 @@ async function processFrame(roi: Roi) {
   if (qr === lastSentQr && now - lastSentAt < duplicateCooldownMs) return
   lastSentQr = qr
   lastSentAt = now
-  apiResponse.value = await postQr(qr,previewImage.value)
+  apiResponse.value = await postQr(qr, previewImage.value, serverUrl.value)
 }
 
 async function scanOnce() {
   stopScan()
   errorMessage.value = ''
+  if (!validateServerUrl()) return
   state.value = 'Selecting region'
   const roi = await selectRoi()
   if (!roi) return (state.value = 'Idle')
@@ -71,6 +106,7 @@ async function scanOnce() {
 async function startContinuousScan() {
   stopScan()
   errorMessage.value = ''
+  if (!validateServerUrl()) return
 
   try {
     activeRoi = await startContinuousOverlay()
@@ -128,13 +164,25 @@ window.addEventListener('keydown', onEsc)
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onEsc)
   stopScan()
+  if (tooltipTimer) window.clearTimeout(tooltipTimer)
 })
 </script>
 
 <template>
   <main class="app">
     <h1>Windows Screen QR Scanner</h1>
-    <ScannerControls :can-save="!!previewImage" @scan-once="scanOnce" @start="startContinuousScan" @stop="stopScan" @save="onSave" />
+    <ScannerControls
+      :can-save="!!previewImage"
+      :server-url="serverUrl"
+      :tooltip-message="tooltipMessage"
+      :tooltip-type="tooltipType"
+      @update:server-url="onServerUrlUpdate"
+      @check-server="onCheckServer"
+      @scan-once="scanOnce"
+      @start="startContinuousScan"
+      @stop="stopScan"
+      @save="onSave"
+    />
     <ScannerStatus :state="state" :last-qr="lastQr" :api-response="apiResponse" :error-message="errorMessage" :decoder-available="decoderAvailable" />
     <PreviewPanel :preview-image="previewImage" />
   </main>
