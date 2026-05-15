@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import ScannerControls from './components/ScannerControls.vue'
 import ScannerStatus from './components/ScannerStatus.vue'
 import PreviewPanel from './components/PreviewPanel.vue'
@@ -59,9 +59,13 @@ function validateServerUrl() {
   }
 }
 
+function saveServerUrl() {
+  localStorage.setItem('qr-scanner-server-url', serverUrl.value)
+}
+
 function onServerUrlUpdate(value: string) {
   serverUrl.value = value
-  localStorage.setItem('qr-scanner-server-url', value)
+  saveServerUrl()
 }
 
 async function onCheckServer() {
@@ -70,6 +74,8 @@ async function onCheckServer() {
 }
 
 const decoderAvailable = isDecoderAvailable()
+
+watch(serverUrl, saveServerUrl, { flush: 'sync' })
 
 async function processFrame(roi: Roi) {
   const roiImage = await captureRoiImage(roi)
@@ -161,8 +167,11 @@ function onEsc(e: KeyboardEvent) {
   if (e.key === 'Escape') stopScan()
 }
 window.addEventListener('keydown', onEsc)
+window.addEventListener('beforeunload', saveServerUrl)
 onBeforeUnmount(() => {
+  saveServerUrl()
   window.removeEventListener('keydown', onEsc)
+  window.removeEventListener('beforeunload', saveServerUrl)
   stopScan()
   if (tooltipTimer) window.clearTimeout(tooltipTimer)
 })

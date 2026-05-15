@@ -12,7 +12,7 @@ const emit = defineEmits<{
   stop: []
   save: []
   checkServer: []
-  'update:serverUrl': [value: string]
+  'update:server-url': [value: string]
 }>()
 </script>
 
@@ -27,7 +27,7 @@ const emit = defineEmits<{
         type="url"
         placeholder="http://62.238.46.7/nordea"
         aria-label="Server URL"
-        @input="emit('update:serverUrl', ($event.target as HTMLInputElement).value)"
+        @input="emit('update:server-url', ($event.target as HTMLInputElement).value)"
       >
       <button @click="emit('checkServer')">Check Server</button>
       <div v-if="tooltipMessage" class="tooltip" :class="tooltipType" role="status">
