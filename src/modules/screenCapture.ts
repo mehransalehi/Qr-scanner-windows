@@ -2,10 +2,6 @@ export type Roi = { x: number; y: number; width: number; height: number }
 
 const ROI_PADDING = 8
 
-export async function selectRoi(): Promise<Roi | null> {
-  return window.scannerApi.selectRoi()
-}
-
 export async function startContinuousOverlay(): Promise<Roi> {
   return window.scannerApi.startContinuousOverlay()
 }
@@ -14,16 +10,8 @@ export async function stopContinuousOverlay(): Promise<void> {
   return window.scannerApi.stopContinuousOverlay()
 }
 
-export async function updateContinuousOverlayLastQr(qr: string): Promise<void> {
-  return window.scannerApi.updateContinuousOverlayLastQr(qr)
-}
-
 export function onContinuousRoiChanged(callback: (roi: Roi) => void) {
   return window.scannerApi.onContinuousRoiChanged(callback)
-}
-
-export function onContinuousOverlayClosed(callback: () => void) {
-  return window.scannerApi.onContinuousOverlayClosed(callback)
 }
 
 export function withPadding(roi: Roi): Roi {
@@ -53,8 +41,4 @@ export async function captureRoiImage(roi: Roi): Promise<string> {
   if (!ctx) throw new Error('Canvas context unavailable')
   ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
   return canvas.toDataURL('image/png')
-}
-
-export async function saveImage(dataUrl: string) {
-  return window.scannerApi.saveImage(dataUrl)
 }
