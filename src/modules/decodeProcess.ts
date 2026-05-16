@@ -28,7 +28,7 @@ async function getZxingReader(): Promise<ZxingBrowserReader | null> {
 }
 
 export function isDecoderAvailable() {
-  return Boolean(barcodeDetector)
+  return Boolean(barcodeDetector) || Boolean(getZxingReader)
 }
 
 export async function decodeQrFromDataUrl(dataUrl: string): Promise<string | null> {

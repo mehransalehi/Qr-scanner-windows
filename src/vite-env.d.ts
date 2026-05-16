@@ -6,18 +6,14 @@ type ScannerApiCleanup = () => void
 declare global {
   interface Window {
     scannerApi: {
-      selectRoi: () => Promise<Roi | null>
       startContinuousOverlay: () => Promise<Roi>
       stopContinuousOverlay: () => Promise<void>
-      updateContinuousOverlayLastQr: (qr: string) => Promise<void>
       onContinuousRoiChanged: (callback: (roi: Roi) => void) => ScannerApiCleanup
-      onContinuousOverlayClosed: (callback: () => void) => ScannerApiCleanup
       captureFullscreen: (roi: Roi) => Promise<{
         imageDataUrl: string
         displayBounds: { x: number; y: number; width: number; height: number }
         scaleFactor: number
       }>
-      saveImage: (dataUrl: string) => Promise<{ canceled: boolean; filePath?: string }>
     }
   }
 

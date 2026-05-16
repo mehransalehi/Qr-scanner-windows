@@ -29,7 +29,7 @@
   "main": "dist-electron/main.js",
   "build": {
     "appId": "com.windows-qr-scanner.id",
-    "productName": "Wndows QR scanner",
+    "productName": "QR Scanner",
     "directories": {
       "output": "release"
     },
@@ -43,7 +43,7 @@
         "nsis",
         "portable"
       ],
-      "icon": "build/icon.ico"
+      "icon": "public/icon.ico"
     }
   }
 }
