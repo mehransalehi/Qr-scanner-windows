@@ -6,17 +6,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 
-let win: BrowserWindow | null = null
-let overlayWindow: BrowserWindow | null = null
-let overlayRelativeBounds: Roi | null = null
-let lastParentContentBounds: Electron.Rectangle | null = null
-let isSyncingOverlayBounds = false
-
 type Roi = { x: number; y: number; width: number; height: number }
 
-const DEFAULT_CONTINUOUS_ROI_SIZE = 240
-const CONTINUOUS_OVERLAY_MARGIN = 24
-const MIN_CONTINUOUS_ROI_SIZE = 96
+const DEFAULT_CONTINUOUS_ROI_WIDTH = 360
+const DEFAULT_CONTINUOUS_ROI_HEIGHT = 240
+const DEFAULT_MAIN_WINDOW_HEIGHT = 230
+const MIN_CONTINUOUS_ROI_WIDTH = 260
+const MIN_CONTINUOUS_ROI_HEIGHT = 120
+
+let win: BrowserWindow | null = null
+let overlayWindow: BrowserWindow | null = null
+let overlayHeight = DEFAULT_CONTINUOUS_ROI_HEIGHT
+let isSyncingAttachedWindows = false
 
 
 /**
@@ -36,8 +37,11 @@ function getRendererIndexPath() {
 function createWindow() {
   // Menu.setApplicationMenu(null)
   win = new BrowserWindow({
-    width: 1100,
-    height: 780,
+    width: DEFAULT_CONTINUOUS_ROI_WIDTH,
+    height: DEFAULT_MAIN_WINDOW_HEIGHT,
+    minWidth: MIN_CONTINUOUS_ROI_WIDTH,
+    minHeight: DEFAULT_MAIN_WINDOW_HEIGHT,
+    useContentSize: true,
     icon: path.join(app.getAppPath(), 'dist', 'electron-vite.svg'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
@@ -50,8 +54,8 @@ function createWindow() {
     win = null
   })
 
-  win.on('move', () => syncOverlayToRelativeBounds())
-  win.on('resize', () => syncOverlayWithParentResize())
+  win.on('move', () => syncOverlayToMainWindow())
+  win.on('resize', () => syncOverlayToMainWindow())
 
   win.webContents.on('context-menu', (_event, params) => {
     if (!params.isEditable) return
@@ -74,83 +78,46 @@ function createWindow() {
 
 
 
-function getParentContentBounds() {
+function getMainContentBounds() {
   return win?.getContentBounds() ?? screen.getPrimaryDisplay().workArea
 }
 
-function clampOverlayToParent(bounds: Roi, parentBounds = getParentContentBounds()): Roi {
-  const width = Math.min(
-    Math.max(MIN_CONTINUOUS_ROI_SIZE, Math.round(bounds.width)),
-    Math.max(MIN_CONTINUOUS_ROI_SIZE, parentBounds.width - CONTINUOUS_OVERLAY_MARGIN * 2),
-  )
-  const height = Math.min(
-    Math.max(MIN_CONTINUOUS_ROI_SIZE, Math.round(bounds.height)),
-    Math.max(MIN_CONTINUOUS_ROI_SIZE, parentBounds.height - CONTINUOUS_OVERLAY_MARGIN * 2),
-  )
-  const left = Math.min(
-    Math.max(CONTINUOUS_OVERLAY_MARGIN, Math.round(bounds.x)),
-    Math.max(CONTINUOUS_OVERLAY_MARGIN, parentBounds.width - width - CONTINUOUS_OVERLAY_MARGIN),
-  )
-  const top = Math.min(
-    Math.max(CONTINUOUS_OVERLAY_MARGIN, Math.round(bounds.y)),
-    Math.max(CONTINUOUS_OVERLAY_MARGIN, parentBounds.height - height - CONTINUOUS_OVERLAY_MARGIN),
-  )
-
-  return { x: left, y: top, width, height }
-}
-
-function relativeToScreenBounds(relativeBounds: Roi, parentBounds = getParentContentBounds()): Electron.Rectangle {
-  const clamped = clampOverlayToParent(relativeBounds, parentBounds)
+function getAttachedOverlayBounds(mainBounds = getMainContentBounds()): Electron.Rectangle {
   return {
-    x: parentBounds.x + clamped.x,
-    y: parentBounds.y + clamped.y,
-    width: clamped.width,
-    height: clamped.height,
+    x: mainBounds.x,
+    y: mainBounds.y - overlayHeight,
+    width: mainBounds.width,
+    height: overlayHeight,
   }
 }
 
-function syncOverlayToRelativeBounds(parentBounds = getParentContentBounds()) {
-  if (!overlayWindow || !overlayRelativeBounds) return
-  isSyncingOverlayBounds = true
-  overlayWindow.setBounds(relativeToScreenBounds(overlayRelativeBounds, parentBounds))
-  isSyncingOverlayBounds = false
+function syncOverlayToMainWindow() {
+  if (!overlayWindow || !win || isSyncingAttachedWindows) return
+  isSyncingAttachedWindows = true
+  overlayWindow.setBounds(getAttachedOverlayBounds())
+  isSyncingAttachedWindows = false
   sendContinuousOverlayRoi()
 }
 
-function updateOverlayRelativeBounds() {
-  if (!overlayWindow || isSyncingOverlayBounds) return
-  const parentBounds = getParentContentBounds()
-  const bounds = overlayWindow.getBounds()
-  overlayRelativeBounds = clampOverlayToParent(
-    {
-      x: bounds.x - parentBounds.x,
-      y: bounds.y - parentBounds.y,
-      width: bounds.width,
-      height: bounds.height,
-    },
-    parentBounds,
-  )
-  syncOverlayToRelativeBounds(parentBounds)
-}
-
-function syncOverlayWithParentResize() {
-  if (!overlayWindow || !overlayRelativeBounds) return
-  const parentBounds = getParentContentBounds()
-
-  if (lastParentContentBounds) {
-    overlayRelativeBounds = clampOverlayToParent(
-      {
-        x: (overlayRelativeBounds.x / lastParentContentBounds.width) * parentBounds.width,
-        y: (overlayRelativeBounds.y / lastParentContentBounds.height) * parentBounds.height,
-        width: (overlayRelativeBounds.width / lastParentContentBounds.width) * parentBounds.width,
-        height: (overlayRelativeBounds.height / lastParentContentBounds.height) * parentBounds.height,
-      },
-      parentBounds,
-    )
-  }
-
-  lastParentContentBounds = parentBounds
-  syncOverlayToRelativeBounds(parentBounds)
+function syncMainWindowToOverlay() {
+  if (!overlayWindow || !win || isSyncingAttachedWindows) return
+  const overlayBounds = overlayWindow.getBounds()
+  overlayHeight = Math.max(MIN_CONTINUOUS_ROI_HEIGHT, overlayBounds.height)
+  isSyncingAttachedWindows = true
+  win.setContentBounds({
+    x: overlayBounds.x,
+    y: overlayBounds.y + overlayHeight,
+    width: Math.max(MIN_CONTINUOUS_ROI_WIDTH, overlayBounds.width),
+    height: getMainContentBounds().height,
+  })
+  overlayWindow.setBounds({
+    x: overlayBounds.x,
+    y: overlayBounds.y,
+    width: Math.max(MIN_CONTINUOUS_ROI_WIDTH, overlayBounds.width),
+    height: overlayHeight,
+  })
+  isSyncingAttachedWindows = false
+  sendContinuousOverlayRoi()
 }
 
 function continuousOverlayRoi(): Roi | null {
@@ -170,20 +137,17 @@ function sendContinuousOverlayRoi() {
 }
 
 function createContinuousOverlayWindow(initialRoi: Roi) {
-  const parentBounds = getParentContentBounds()
-  overlayRelativeBounds = clampOverlayToParent(initialRoi, parentBounds)
-  lastParentContentBounds = parentBounds
-  const initialBounds = relativeToScreenBounds(overlayRelativeBounds, parentBounds)
+  overlayHeight = Math.max(MIN_CONTINUOUS_ROI_HEIGHT, initialRoi.height)
+  const initialBounds = getAttachedOverlayBounds()
 
   overlayWindow = new BrowserWindow({
     autoHideMenuBar: true,
-    parent: win ?? undefined,
     x: initialBounds.x,
     y: initialBounds.y,
     width: initialBounds.width,
     height: initialBounds.height,
-    minWidth: MIN_CONTINUOUS_ROI_SIZE,
-    minHeight: MIN_CONTINUOUS_ROI_SIZE,
+    minWidth: MIN_CONTINUOUS_ROI_WIDTH,
+    minHeight: MIN_CONTINUOUS_ROI_HEIGHT,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -215,8 +179,8 @@ function createContinuousOverlayWindow(initialRoi: Roi) {
     <script>
       const { ipcRenderer } = require('electron');
       let resize = null;
-      const minWidth = ${MIN_CONTINUOUS_ROI_SIZE};
-      const minHeight = ${MIN_CONTINUOUS_ROI_SIZE};
+      const minWidth = ${MIN_CONTINUOUS_ROI_WIDTH};
+      const minHeight = ${MIN_CONTINUOUS_ROI_HEIGHT};
 
       function beginResize(e, edge) {
         e.preventDefault();
@@ -271,33 +235,21 @@ function createContinuousOverlayWindow(initialRoi: Roi) {
 
   overlayWindow.setContentProtection(true)
   overlayWindow.setAlwaysOnTop(true, 'screen-saver')
-  overlayWindow.on('move', () => {
-    updateOverlayRelativeBounds()
-    sendContinuousOverlayRoi()
-  })
-  overlayWindow.on('resize', () => {
-    updateOverlayRelativeBounds()
-    sendContinuousOverlayRoi()
-  })
+  overlayWindow.on('move', syncMainWindowToOverlay)
+  overlayWindow.on('resize', syncMainWindowToOverlay)
   overlayWindow.on('closed', () => {
     overlayWindow = null
-    overlayRelativeBounds = null
-    lastParentContentBounds = null
+    overlayHeight = DEFAULT_CONTINUOUS_ROI_HEIGHT
   })
   overlayWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
 }
 
 function getDefaultContinuousRoi(bounds: Electron.Rectangle): Roi {
-  const size = Math.min(
-    DEFAULT_CONTINUOUS_ROI_SIZE,
-    Math.max(MIN_CONTINUOUS_ROI_SIZE, bounds.width - CONTINUOUS_OVERLAY_MARGIN * 2),
-    Math.max(MIN_CONTINUOUS_ROI_SIZE, bounds.height - CONTINUOUS_OVERLAY_MARGIN * 2),
-  )
   return {
-    x: Math.max(CONTINUOUS_OVERLAY_MARGIN, Math.floor((bounds.width - size) / 2)),
-    y: Math.max(CONTINUOUS_OVERLAY_MARGIN, Math.floor((bounds.height - size) / 2)),
-    width: size,
-    height: size,
+    x: bounds.x,
+    y: bounds.y - DEFAULT_CONTINUOUS_ROI_HEIGHT,
+    width: Math.max(MIN_CONTINUOUS_ROI_WIDTH, bounds.width),
+    height: DEFAULT_CONTINUOUS_ROI_HEIGHT,
   }
 }
 
@@ -305,14 +257,13 @@ function closeOverlayWindow() {
   if (!overlayWindow) return
   overlayWindow.close()
   overlayWindow = null
-  overlayRelativeBounds = null
-  lastParentContentBounds = null
+  overlayHeight = DEFAULT_CONTINUOUS_ROI_HEIGHT
 }
 
 ipcMain.handle('scanner:start-continuous-overlay', async (): Promise<Roi> => {
   if (!overlayWindow) {
-    const parentBounds = getParentContentBounds()
-    const initialRoi = overlayRelativeBounds ?? getDefaultContinuousRoi(parentBounds)
+    const parentBounds = getMainContentBounds()
+    const initialRoi = getDefaultContinuousRoi(parentBounds)
     createContinuousOverlayWindow(initialRoi)
   }
   const roi = continuousOverlayRoi()
@@ -331,17 +282,13 @@ ipcMain.on('continuous-overlay:roi-changed', () => {
 
 ipcMain.on('continuous-overlay:set-bounds', (_event, requestedBounds: Electron.Rectangle) => {
   if (!overlayWindow) return
-  const parentBounds = getParentContentBounds()
-  overlayRelativeBounds = clampOverlayToParent(
-    {
-      x: requestedBounds.x - parentBounds.x,
-      y: requestedBounds.y - parentBounds.y,
-      width: requestedBounds.width,
-      height: requestedBounds.height,
-    },
-    parentBounds,
-  )
-  syncOverlayToRelativeBounds(parentBounds)
+  overlayWindow.setBounds({
+    x: Math.round(requestedBounds.x),
+    y: Math.round(requestedBounds.y),
+    width: Math.max(MIN_CONTINUOUS_ROI_WIDTH, Math.round(requestedBounds.width)),
+    height: Math.max(MIN_CONTINUOUS_ROI_HEIGHT, Math.round(requestedBounds.height)),
+  })
+  syncMainWindowToOverlay()
 })
 
 
