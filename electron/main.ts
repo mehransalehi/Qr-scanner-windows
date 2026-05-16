@@ -9,7 +9,7 @@ export const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 type Roi = { x: number; y: number; width: number; height: number }
 
 const DEFAULT_CONTINUOUS_ROI_WIDTH = 360
-const DEFAULT_CONTINUOUS_ROI_HEIGHT = 240
+const DEFAULT_CONTINUOUS_ROI_HEIGHT = 320
 const DEFAULT_MAIN_WINDOW_HEIGHT = 230
 const MIN_CONTINUOUS_ROI_WIDTH = 260
 const MIN_CONTINUOUS_ROI_HEIGHT = 120
@@ -18,6 +18,7 @@ let win: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
 let overlayHeight = DEFAULT_CONTINUOUS_ROI_HEIGHT
 let isSyncingAttachedWindows = false
+let isClosingOverlayFromApp = false
 
 
 /**
@@ -34,15 +35,21 @@ function getRendererIndexPath() {
   return path.join(app.getAppPath(), 'dist', 'index.html')
 }
 
+function getAppIconPath() {
+  if (app.isPackaged) return path.join(app.getAppPath(), 'dist', 'icon.ico')
+  return path.join(process.env.APP_ROOT ?? process.cwd(), 'public', 'icon.ico')
+}
+
 function createWindow() {
-  // Menu.setApplicationMenu(null)
+  Menu.setApplicationMenu(null)
   win = new BrowserWindow({
     width: DEFAULT_CONTINUOUS_ROI_WIDTH,
     height: DEFAULT_MAIN_WINDOW_HEIGHT,
     minWidth: MIN_CONTINUOUS_ROI_WIDTH,
     minHeight: DEFAULT_MAIN_WINDOW_HEIGHT,
     useContentSize: true,
-    icon: path.join(app.getAppPath(), 'dist', 'electron-vite.svg'),
+    title: 'QR Scanner',
+    icon: getAppIconPath(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,
@@ -78,11 +85,11 @@ function createWindow() {
 
 
 
-function getMainContentBounds() {
-  return win?.getContentBounds() ?? screen.getPrimaryDisplay().workArea
+function getMainWindowBounds() {
+  return win?.getBounds() ?? screen.getPrimaryDisplay().workArea
 }
 
-function getAttachedOverlayBounds(mainBounds = getMainContentBounds()): Electron.Rectangle {
+function getAttachedOverlayBounds(mainBounds = getMainWindowBounds()): Electron.Rectangle {
   return {
     x: mainBounds.x,
     y: mainBounds.y - overlayHeight,
@@ -104,11 +111,11 @@ function syncMainWindowToOverlay() {
   const overlayBounds = overlayWindow.getBounds()
   overlayHeight = Math.max(MIN_CONTINUOUS_ROI_HEIGHT, overlayBounds.height)
   isSyncingAttachedWindows = true
-  win.setContentBounds({
+  win.setBounds({
     x: overlayBounds.x,
     y: overlayBounds.y + overlayHeight,
     width: Math.max(MIN_CONTINUOUS_ROI_WIDTH, overlayBounds.width),
-    height: getMainContentBounds().height,
+    height: getMainWindowBounds().height,
   })
   overlayWindow.setBounds({
     x: overlayBounds.x,
@@ -238,8 +245,11 @@ function createContinuousOverlayWindow(initialRoi: Roi) {
   overlayWindow.on('move', syncMainWindowToOverlay)
   overlayWindow.on('resize', syncMainWindowToOverlay)
   overlayWindow.on('closed', () => {
+    const shouldQuit = !isClosingOverlayFromApp
     overlayWindow = null
     overlayHeight = DEFAULT_CONTINUOUS_ROI_HEIGHT
+    isClosingOverlayFromApp = false
+    if (shouldQuit) app.quit()
   })
   overlayWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
 }
@@ -255,6 +265,7 @@ function getDefaultContinuousRoi(bounds: Electron.Rectangle): Roi {
 
 function closeOverlayWindow() {
   if (!overlayWindow) return
+  isClosingOverlayFromApp = true
   overlayWindow.close()
   overlayWindow = null
   overlayHeight = DEFAULT_CONTINUOUS_ROI_HEIGHT
@@ -262,7 +273,7 @@ function closeOverlayWindow() {
 
 ipcMain.handle('scanner:start-continuous-overlay', async (): Promise<Roi> => {
   if (!overlayWindow) {
-    const parentBounds = getMainContentBounds()
+    const parentBounds = getMainWindowBounds()
     const initialRoi = getDefaultContinuousRoi(parentBounds)
     createContinuousOverlayWindow(initialRoi)
   }
