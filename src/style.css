@@ -109,6 +109,14 @@ button { cursor: pointer; }
 button:hover:not(:disabled) { background: #244372; }
 button:disabled { opacity: .7; cursor: not-allowed; }
 button.danger { background: #6a2127; border-color: #8f3139; }
+button.danger:hover { background: #7b2930; }
+
+.window-actions .window-action {
+  width: 32px;
+  height: 28px;
+  padding: 0;
+}
+button.danger:hover { background: #7b2930; }
 
 .window-actions .window-action {
   width: 32px;
