@@ -2,8 +2,22 @@ export type Roi = { x: number; y: number; width: number; height: number }
 
 const ROI_PADDING = 8
 
-export async function startContinuousOverlay(): Promise<Roi> {
-  return window.scannerApi.startContinuousOverlay()
+function elementToRect(element: HTMLElement): Roi {
+  const rect = element.getBoundingClientRect()
+  return {
+    x: rect.left,
+    y: rect.top,
+    width: rect.width,
+    height: rect.height,
+  }
+}
+
+export async function startContinuousOverlay(element: HTMLElement): Promise<Roi> {
+  return window.scannerApi.startContinuousOverlay(elementToRect(element))
+}
+
+export async function updateScanArea(element: HTMLElement): Promise<Roi> {
+  return window.scannerApi.updateScanArea(elementToRect(element))
 }
 
 export async function stopContinuousOverlay(): Promise<void> {
@@ -23,8 +37,10 @@ export function withPadding(roi: Roi): Roi {
   }
 }
 
+
 export async function captureRoiImage(roi: Roi): Promise<string> {
   const capture = await window.scannerApi.captureFullscreen(roi)
+
   const img = new Image()
   img.src = capture.imageDataUrl
   await img.decode()
