@@ -6,8 +6,9 @@ type ScannerApiCleanup = () => void
 declare global {
   interface Window {
     scannerApi: {
-      startContinuousOverlay: () => Promise<Roi>
+      startContinuousOverlay: (rect?: Roi) => Promise<Roi>
       stopContinuousOverlay: () => Promise<void>
+      updateScanArea: (rect: Roi) => Promise<Roi>
       onContinuousRoiChanged: (callback: (roi: Roi) => void) => ScannerApiCleanup
       captureFullscreen: (roi: Roi) => Promise<{
         imageDataUrl: string
