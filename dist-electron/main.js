@@ -1,238 +1,131 @@
-import { ipcMain as p, screen as O, desktopCapturer as A, app as o, BrowserWindow as f, Menu as z } from "electron";
-import { fileURLToPath as P } from "node:url";
-import h from "node:path";
-const H = h.dirname(P(import.meta.url)), R = process.env.VITE_DEV_SERVER_URL, D = 360, u = 320, _ = 230, a = 260, c = 120;
-let n = null, t = null, s = u, d = !1, g = !1;
-function C() {
-  return o.isPackaged ? h.join(o.getAppPath(), "dist", "index.html") : h.join(process.env.APP_ROOT ?? "", "dist", "index.html");
+import { ipcMain as l, screen as L, desktopCapturer as F, app as i, BrowserWindow as S, Menu as O } from "electron";
+import { fileURLToPath as B } from "node:url";
+import d from "node:path";
+const j = d.dirname(B(import.meta.url)), U = process.env.VITE_DEV_SERVER_URL, b = 360, N = 320, W = 230, z = N + W, y = 260, R = 120, V = R + W;
+let t = null, _ = !1, a = {
+  x: 0,
+  y: 0,
+  width: b,
+  height: N
+};
+function G() {
+  return i.isPackaged ? d.join(i.getAppPath(), "dist", "index.html") : d.join(process.env.APP_ROOT ?? "", "dist", "index.html");
 }
-function N() {
-  return o.isPackaged ? h.join(o.getAppPath(), "dist", "icon.ico") : h.join(process.env.APP_ROOT ?? process.cwd(), "public", "icon.ico");
+function k() {
+  return i.isPackaged ? d.join(i.getAppPath(), "dist", "icon.ico") : d.join(process.env.APP_ROOT ?? process.cwd(), "public", "icon.ico");
 }
-function M() {
-  z.setApplicationMenu(null), n = new f({
-    width: D,
-    height: _,
-    minWidth: a,
-    minHeight: _,
+function A() {
+  O.setApplicationMenu(null), t = new S({
+    width: b,
+    height: z,
+    minWidth: y,
+    minHeight: V,
     useContentSize: !0,
     title: "QR Scanner",
-    icon: N(),
+    icon: k(),
+    show: !1,
+    frame: !1,
+    resizable: !1,
+    transparent: !0,
+    backgroundColor: "#00000000",
     webPreferences: {
-      preload: h.join(H, "preload.mjs"),
+      preload: d.join(j, "preload.mjs"),
       contextIsolation: !0
     }
-  }), n.on("closed", () => {
-    E(), n = null;
-  }), n.on("move", () => I()), n.on("resize", () => I()), n.webContents.on("context-menu", (e, i) => {
-    i.isEditable && z.buildFromTemplate([
+  }), t.on("closed", () => {
+    _ = !1, t = null;
+  }), t.setContentProtection(!0), t.once("ready-to-show", () => {
+    I();
+  }), t.on("move", () => x()), t.on("resize", () => {
+    I(), x();
+  }), t.webContents.on("context-menu", (e, n) => {
+    n.isEditable && O.buildFromTemplate([
       { role: "cut" },
       { role: "copy" },
       { role: "paste" },
       { type: "separator" },
       { role: "selectAll" }
-    ]).popup({ window: n ?? void 0 });
-  }), R ? n.loadURL(R) : n.loadFile(C());
-}
-function y() {
-  return (n == null ? void 0 : n.getBounds()) ?? O.getPrimaryDisplay().workArea;
-}
-function T(e = y()) {
-  return {
-    x: e.x,
-    y: e.y - s,
-    width: e.width,
-    height: s
-  };
-}
-function I() {
-  !t || !n || d || (d = !0, t.setBounds(T()), d = !1, m());
-}
-function x() {
-  if (!t || !n || d) return;
-  const e = t.getBounds();
-  s = Math.max(c, e.height), d = !0, n.setBounds({
-    x: e.x,
-    y: e.y + s,
-    width: Math.max(a, e.width),
-    height: y().height
-  }), t.setBounds({
-    x: e.x,
-    y: e.y,
-    width: Math.max(a, e.width),
-    height: s
-  }), d = !1, m();
-}
-function W() {
-  if (!t) return null;
-  const e = t.getBounds();
-  return {
-    x: e.x,
-    y: e.y,
-    width: e.width,
-    height: e.height
-  };
-}
-function m() {
-  const e = W();
-  e && (n == null || n.webContents.send("scanner:continuous-roi-changed", e));
-}
-function S(e) {
-  s = Math.max(c, e.height);
-  const i = T();
-  t = new f({
-    autoHideMenuBar: !0,
-    x: i.x,
-    y: i.y,
-    width: i.width,
-    height: i.height,
-    minWidth: a,
-    minHeight: c,
-    frame: !1,
-    transparent: !0,
-    alwaysOnTop: !0,
-    skipTaskbar: !0,
-    fullscreenable: !1,
-    resizable: !0,
-    movable: !0,
-    webPreferences: {
-      contextIsolation: !1,
-      nodeIntegration: !0
-    }
-  });
-  const l = `<!doctype html><html><head><style>
-    html,body{margin:0;width:100%;height:100%;background:transparent;font-family:Segoe UI,sans-serif;user-select:none;overflow:hidden;}
-    #scanner{position:relative;width:100%;height:100%;filter:drop-shadow(0 10px 24px rgba(0,0,0,.35));}
-    #scanBox{position:absolute;inset:0;border:2px solid #58a6ff;border-radius:10px;background:rgba(88,166,255,.28);cursor:move;-webkit-app-region:drag}
-    #scanBox::after{content:'';position:absolute;inset:10px;border:1px dashed rgba(255,255,255,.75);border-radius:8px;pointer-events:none}
-    .handle{position:absolute;z-index:5;background:transparent;-webkit-app-region:no-drag}
-    .n{left:12px;right:12px;top:0;height:10px;cursor:ns-resize}.s{left:12px;right:12px;bottom:0;height:10px;cursor:ns-resize}
-    .w{left:0;top:12px;bottom:12px;width:10px;cursor:ew-resize}.e{right:0;top:12px;bottom:12px;width:10px;cursor:ew-resize}
-    .nw{left:0;top:0;width:16px;height:16px;cursor:nwse-resize}.ne{right:0;top:0;width:16px;height:16px;cursor:nesw-resize}.sw{left:0;bottom:0;width:16px;height:16px;cursor:nesw-resize}.se{right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize}
-  </style></head><body>
-    <div id="scanner">
-      <div id="scanBox"></div>
-      <div class="handle n" data-handle="n"></div><div class="handle e" data-handle="e"></div><div class="handle s" data-handle="s"></div><div class="handle w" data-handle="w"></div>
-      <div class="handle nw" data-handle="nw"></div><div class="handle ne" data-handle="ne"></div><div class="handle sw" data-handle="sw"></div><div class="handle se" data-handle="se"></div>
-    </div>
-    <script>
-      const { ipcRenderer } = require('electron');
-      let resize = null;
-      const minWidth = ${a};
-      const minHeight = ${c};
-
-      function beginResize(e, edge) {
-        e.preventDefault();
-        e.stopPropagation();
-        resize = {
-          edge,
-          startX: e.screenX,
-          startY: e.screenY,
-          bounds: {
-            x: window.screenX,
-            y: window.screenY,
-            width: window.outerWidth,
-            height: window.outerHeight,
-          },
-        };
-      }
-
-      function updateResize(e) {
-        if (!resize) return;
-        const dx = e.screenX - resize.startX;
-        const dy = e.screenY - resize.startY;
-        const next = { ...resize.bounds };
-        if (resize.edge.includes('e')) next.width = resize.bounds.width + dx;
-        if (resize.edge.includes('s')) next.height = resize.bounds.height + dy;
-        if (resize.edge.includes('w')) {
-          next.x = resize.bounds.x + dx;
-          next.width = resize.bounds.width - dx;
-        }
-        if (resize.edge.includes('n')) {
-          next.y = resize.bounds.y + dy;
-          next.height = resize.bounds.height - dy;
-        }
-        if (next.width < minWidth) {
-          if (resize.edge.includes('w')) next.x -= minWidth - next.width;
-          next.width = minWidth;
-        }
-        if (next.height < minHeight) {
-          if (resize.edge.includes('n')) next.y -= minHeight - next.height;
-          next.height = minHeight;
-        }
-        ipcRenderer.send('continuous-overlay:set-bounds', next);
-      }
-
-      document.querySelectorAll('.handle').forEach(handle => {
-        handle.addEventListener('mousedown', e => beginResize(e, handle.dataset.handle));
-      });
-      window.addEventListener('mousemove', updateResize);
-      window.addEventListener('mouseup', () => { resize = null; });
-      ipcRenderer.send('continuous-overlay:roi-changed');
-    <\/script>
-  </body></html>`;
-  t.setContentProtection(!0), t.setAlwaysOnTop(!0, "screen-saver"), t.on("move", x), t.on("resize", x), t.on("closed", () => {
-    const r = !g;
-    t = null, s = u, g = !1, r && o.quit();
-  }), t.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(l)}`);
-}
-function B(e) {
-  return {
-    x: e.x,
-    y: e.y - u,
-    width: Math.max(a, e.width),
-    height: u
-  };
+    ]).popup({ window: t ?? void 0 });
+  }), U ? t.loadURL(U) : t.loadFile(G());
 }
 function E() {
-  t && (g = !0, t.close(), t = null, s = u);
+  if (!t) return null;
+  const e = t.getContentBounds();
+  return {
+    x: Math.round(e.x + a.x),
+    y: Math.round(e.y + a.y),
+    width: Math.max(y, Math.round(a.width)),
+    height: Math.max(R, Math.round(a.height))
+  };
 }
-p.handle("scanner:start-continuous-overlay", async () => {
-  if (!t) {
-    const i = y(), l = B(i);
-    S(l);
-  }
-  const e = W();
-  if (!e) throw new Error("Unable to create scan area");
-  return e;
+function x() {
+  const e = E();
+  e && (t == null || t.webContents.send("scanner:continuous-roi-changed", e));
+}
+function I() {
+  if (!t || process.platform === "darwin") return;
+  const e = t.getContentBounds(), n = [], o = (D, H, v, C) => {
+    const g = {
+      x: Math.max(0, Math.round(D)),
+      y: Math.max(0, Math.round(H)),
+      width: Math.max(0, Math.round(v)),
+      height: Math.max(0, Math.round(C))
+    };
+    g.width > 0 && g.height > 0 && n.push(g);
+  }, r = Math.max(0, Math.round(a.x)), s = Math.max(0, Math.round(a.y)), m = Math.min(e.width - r, Math.round(a.width)), u = Math.min(e.height - s, Math.round(a.height)), c = 8, h = 12, p = r + c, f = s + c, w = Math.max(0, m - c * 2), M = Math.max(0, u - c * 2);
+  o(p, f, w, h), o(p, f + M - h, w, h), o(p, f, h, M), o(p + w - h, f, h, M);
+  const T = Math.min(e.height, Math.max(0, s + u));
+  o(0, T, e.width, e.height - T), t.setShape(n);
+}
+function P(e) {
+  a = {
+    x: Math.max(0, e.x),
+    y: Math.max(0, e.y),
+    width: Math.max(y, e.width),
+    height: Math.max(R, e.height)
+  }, I();
+  const n = E();
+  if (!n) throw new Error("Unable to locate scan area");
+  return _ || (t == null || t.show(), _ = !0), x(), n;
+}
+l.handle("scanner:start-continuous-overlay", async (e, n) => {
+  if (n) return P(n);
+  const o = E();
+  if (!o) throw new Error("Unable to create scan area");
+  return o;
 });
-p.handle("scanner:stop-continuous-overlay", async () => {
-  E();
+l.handle("scanner:stop-continuous-overlay", async () => {
 });
-p.on("continuous-overlay:roi-changed", () => {
-  m();
+l.handle("scanner:update-scan-area", async (e, n) => P(n));
+l.handle("window:minimize", () => {
+  t == null || t.minimize();
 });
-p.on("continuous-overlay:set-bounds", (e, i) => {
-  t && (t.setBounds({
-    x: Math.round(i.x),
-    y: Math.round(i.y),
-    width: Math.max(a, Math.round(i.width)),
-    height: Math.max(c, Math.round(i.height))
-  }), x());
+l.handle("window:close", () => {
+  t == null || t.close();
 });
-p.handle("scanner:capture-fullscreen", async (e, i) => {
-  const l = { x: i.x + i.width / 2, y: i.y + i.height / 2 }, r = O.getDisplayNearestPoint(l), w = r.scaleFactor || 1, v = await A.getSources({
+l.handle("scanner:capture-fullscreen", async (e, n) => {
+  const o = { x: n.x + n.width / 2, y: n.y + n.height / 2 }, r = L.getDisplayNearestPoint(o), s = r.scaleFactor || 1, m = await F.getSources({
     types: ["screen"],
     thumbnailSize: {
-      width: Math.floor(r.bounds.width * w),
-      height: Math.floor(r.bounds.height * w)
+      width: Math.floor(r.bounds.width * s),
+      height: Math.floor(r.bounds.height * s)
     },
     fetchWindowIcons: !1
-  }), b = v.find((U) => U.display_id === String(r.id)) || v[0];
-  if (!b) throw new Error("No screen source available");
+  }), u = m.find((c) => c.display_id === String(r.id)) || m[0];
+  if (!u) throw new Error("No screen source available");
   return {
-    imageDataUrl: b.thumbnail.toDataURL(),
+    imageDataUrl: u.thumbnail.toDataURL(),
     displayBounds: r.bounds,
-    scaleFactor: w
+    scaleFactor: s
   };
 });
-o.on("window-all-closed", () => {
-  process.platform !== "darwin" && (o.quit(), n = null);
+i.on("window-all-closed", () => {
+  process.platform !== "darwin" && (i.quit(), t = null);
 });
-o.on("activate", () => {
-  f.getAllWindows().length === 0 && M();
+i.on("activate", () => {
+  S.getAllWindows().length === 0 && A();
 });
-o.whenReady().then(M);
+i.whenReady().then(A);
 export {
-  R as VITE_DEV_SERVER_URL
+  U as VITE_DEV_SERVER_URL
 };

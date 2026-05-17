@@ -7,19 +7,24 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 export const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 
 type Roi = { x: number; y: number; width: number; height: number }
+type ScanAreaRect = Roi
 
 const DEFAULT_CONTINUOUS_ROI_WIDTH = 360
 const DEFAULT_CONTINUOUS_ROI_HEIGHT = 320
 const DEFAULT_MAIN_WINDOW_HEIGHT = 230
+const DEFAULT_WINDOW_HEIGHT = DEFAULT_CONTINUOUS_ROI_HEIGHT + DEFAULT_MAIN_WINDOW_HEIGHT
 const MIN_CONTINUOUS_ROI_WIDTH = 260
 const MIN_CONTINUOUS_ROI_HEIGHT = 120
+const MIN_WINDOW_HEIGHT = MIN_CONTINUOUS_ROI_HEIGHT + DEFAULT_MAIN_WINDOW_HEIGHT
 
 let win: BrowserWindow | null = null
-let overlayWindow: BrowserWindow | null = null
-let overlayHeight = DEFAULT_CONTINUOUS_ROI_HEIGHT
-let isSyncingAttachedWindows = false
-let isClosingOverlayFromApp = false
-
+let hasShownWindow = false
+let currentScanAreaRect: ScanAreaRect = {
+  x: 0,
+  y: 0,
+  width: DEFAULT_CONTINUOUS_ROI_WIDTH,
+  height: DEFAULT_CONTINUOUS_ROI_HEIGHT,
+}
 
 /**
  * ✅ FIX: correct renderer path for production
@@ -44,12 +49,17 @@ function createWindow() {
   Menu.setApplicationMenu(null)
   win = new BrowserWindow({
     width: DEFAULT_CONTINUOUS_ROI_WIDTH,
-    height: DEFAULT_MAIN_WINDOW_HEIGHT,
+    height: DEFAULT_WINDOW_HEIGHT,
     minWidth: MIN_CONTINUOUS_ROI_WIDTH,
-    minHeight: DEFAULT_MAIN_WINDOW_HEIGHT,
+    minHeight: MIN_WINDOW_HEIGHT,
     useContentSize: true,
     title: 'QR Scanner',
     icon: getAppIconPath(),
+    show: false,
+    frame: false,
+    resizable: false,
+    transparent: true,
+    backgroundColor: '#00000000',
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,
@@ -57,12 +67,21 @@ function createWindow() {
   })
 
   win.on('closed', () => {
-    closeOverlayWindow()
+    hasShownWindow = false
     win = null
   })
 
-  win.on('move', () => syncOverlayToMainWindow())
-  win.on('resize', () => syncOverlayToMainWindow())
+  win.setContentProtection(true)
+
+  win.once('ready-to-show', () => {
+    updateWindowShape()
+  })
+
+  win.on('move', () => sendContinuousOverlayRoi())
+  win.on('resize', () => {
+    updateWindowShape()
+    sendContinuousOverlayRoi()
+  })
 
   win.webContents.on('context-menu', (_event, params) => {
     if (!params.isEditable) return
@@ -83,225 +102,98 @@ function createWindow() {
   }
 }
 
-
-
-function getMainWindowBounds() {
-  return win?.getBounds() ?? screen.getPrimaryDisplay().workArea
-}
-
-function getAttachedOverlayBounds(mainBounds = getMainWindowBounds()): Electron.Rectangle {
+function embeddedScanAreaRoi(): Roi | null {
+  if (!win) return null
+  const contentBounds = win.getContentBounds()
   return {
-    x: mainBounds.x,
-    y: mainBounds.y - overlayHeight,
-    width: mainBounds.width,
-    height: overlayHeight,
-  }
-}
-
-function syncOverlayToMainWindow() {
-  if (!overlayWindow || !win || isSyncingAttachedWindows) return
-  isSyncingAttachedWindows = true
-  overlayWindow.setBounds(getAttachedOverlayBounds())
-  isSyncingAttachedWindows = false
-  sendContinuousOverlayRoi()
-}
-
-function syncMainWindowToOverlay() {
-  if (!overlayWindow || !win || isSyncingAttachedWindows) return
-  const overlayBounds = overlayWindow.getBounds()
-  overlayHeight = Math.max(MIN_CONTINUOUS_ROI_HEIGHT, overlayBounds.height)
-  isSyncingAttachedWindows = true
-  win.setBounds({
-    x: overlayBounds.x,
-    y: overlayBounds.y + overlayHeight,
-    width: Math.max(MIN_CONTINUOUS_ROI_WIDTH, overlayBounds.width),
-    height: getMainWindowBounds().height,
-  })
-  overlayWindow.setBounds({
-    x: overlayBounds.x,
-    y: overlayBounds.y,
-    width: Math.max(MIN_CONTINUOUS_ROI_WIDTH, overlayBounds.width),
-    height: overlayHeight,
-  })
-  isSyncingAttachedWindows = false
-  sendContinuousOverlayRoi()
-}
-
-function continuousOverlayRoi(): Roi | null {
-  if (!overlayWindow) return null
-  const bounds = overlayWindow.getBounds()
-  return {
-    x: bounds.x,
-    y: bounds.y,
-    width: bounds.width,
-    height: bounds.height,
+    x: Math.round(contentBounds.x + currentScanAreaRect.x),
+    y: Math.round(contentBounds.y + currentScanAreaRect.y),
+    width: Math.max(MIN_CONTINUOUS_ROI_WIDTH, Math.round(currentScanAreaRect.width)),
+    height: Math.max(MIN_CONTINUOUS_ROI_HEIGHT, Math.round(currentScanAreaRect.height)),
   }
 }
 
 function sendContinuousOverlayRoi() {
-  const roi = continuousOverlayRoi()
+  const roi = embeddedScanAreaRoi()
   if (roi) win?.webContents.send('scanner:continuous-roi-changed', roi)
 }
 
-function createContinuousOverlayWindow(initialRoi: Roi) {
-  overlayHeight = Math.max(MIN_CONTINUOUS_ROI_HEIGHT, initialRoi.height)
-  const initialBounds = getAttachedOverlayBounds()
+function updateWindowShape() {
+  if (!win || process.platform === 'darwin') return
 
-  overlayWindow = new BrowserWindow({
-    autoHideMenuBar: true,
-    x: initialBounds.x,
-    y: initialBounds.y,
-    width: initialBounds.width,
-    height: initialBounds.height,
-    minWidth: MIN_CONTINUOUS_ROI_WIDTH,
-    minHeight: MIN_CONTINUOUS_ROI_HEIGHT,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    fullscreenable: false,
-    resizable: true,
-    movable: true,
-    webPreferences: {
-      contextIsolation: false,
-      nodeIntegration: true,
-    },
-  })
-
-  const html = `<!doctype html><html><head><style>
-    html,body{margin:0;width:100%;height:100%;background:transparent;font-family:Segoe UI,sans-serif;user-select:none;overflow:hidden;}
-    #scanner{position:relative;width:100%;height:100%;filter:drop-shadow(0 10px 24px rgba(0,0,0,.35));}
-    #scanBox{position:absolute;inset:0;border:2px solid #58a6ff;border-radius:10px;background:rgba(88,166,255,.28);cursor:move;-webkit-app-region:drag}
-    #scanBox::after{content:'';position:absolute;inset:10px;border:1px dashed rgba(255,255,255,.75);border-radius:8px;pointer-events:none}
-    .handle{position:absolute;z-index:5;background:transparent;-webkit-app-region:no-drag}
-    .n{left:12px;right:12px;top:0;height:10px;cursor:ns-resize}.s{left:12px;right:12px;bottom:0;height:10px;cursor:ns-resize}
-    .w{left:0;top:12px;bottom:12px;width:10px;cursor:ew-resize}.e{right:0;top:12px;bottom:12px;width:10px;cursor:ew-resize}
-    .nw{left:0;top:0;width:16px;height:16px;cursor:nwse-resize}.ne{right:0;top:0;width:16px;height:16px;cursor:nesw-resize}.sw{left:0;bottom:0;width:16px;height:16px;cursor:nesw-resize}.se{right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize}
-  </style></head><body>
-    <div id="scanner">
-      <div id="scanBox"></div>
-      <div class="handle n" data-handle="n"></div><div class="handle e" data-handle="e"></div><div class="handle s" data-handle="s"></div><div class="handle w" data-handle="w"></div>
-      <div class="handle nw" data-handle="nw"></div><div class="handle ne" data-handle="ne"></div><div class="handle sw" data-handle="sw"></div><div class="handle se" data-handle="se"></div>
-    </div>
-    <script>
-      const { ipcRenderer } = require('electron');
-      let resize = null;
-      const minWidth = ${MIN_CONTINUOUS_ROI_WIDTH};
-      const minHeight = ${MIN_CONTINUOUS_ROI_HEIGHT};
-
-      function beginResize(e, edge) {
-        e.preventDefault();
-        e.stopPropagation();
-        resize = {
-          edge,
-          startX: e.screenX,
-          startY: e.screenY,
-          bounds: {
-            x: window.screenX,
-            y: window.screenY,
-            width: window.outerWidth,
-            height: window.outerHeight,
-          },
-        };
-      }
-
-      function updateResize(e) {
-        if (!resize) return;
-        const dx = e.screenX - resize.startX;
-        const dy = e.screenY - resize.startY;
-        const next = { ...resize.bounds };
-        if (resize.edge.includes('e')) next.width = resize.bounds.width + dx;
-        if (resize.edge.includes('s')) next.height = resize.bounds.height + dy;
-        if (resize.edge.includes('w')) {
-          next.x = resize.bounds.x + dx;
-          next.width = resize.bounds.width - dx;
-        }
-        if (resize.edge.includes('n')) {
-          next.y = resize.bounds.y + dy;
-          next.height = resize.bounds.height - dy;
-        }
-        if (next.width < minWidth) {
-          if (resize.edge.includes('w')) next.x -= minWidth - next.width;
-          next.width = minWidth;
-        }
-        if (next.height < minHeight) {
-          if (resize.edge.includes('n')) next.y -= minHeight - next.height;
-          next.height = minHeight;
-        }
-        ipcRenderer.send('continuous-overlay:set-bounds', next);
-      }
-
-      document.querySelectorAll('.handle').forEach(handle => {
-        handle.addEventListener('mousedown', e => beginResize(e, handle.dataset.handle));
-      });
-      window.addEventListener('mousemove', updateResize);
-      window.addEventListener('mouseup', () => { resize = null; });
-      ipcRenderer.send('continuous-overlay:roi-changed');
-    </script>
-  </body></html>`
-
-  overlayWindow.setContentProtection(true)
-  overlayWindow.setAlwaysOnTop(true, 'screen-saver')
-  overlayWindow.on('move', syncMainWindowToOverlay)
-  overlayWindow.on('resize', syncMainWindowToOverlay)
-  overlayWindow.on('closed', () => {
-    const shouldQuit = !isClosingOverlayFromApp
-    overlayWindow = null
-    overlayHeight = DEFAULT_CONTINUOUS_ROI_HEIGHT
-    isClosingOverlayFromApp = false
-    if (shouldQuit) app.quit()
-  })
-  overlayWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
-}
-
-function getDefaultContinuousRoi(bounds: Electron.Rectangle): Roi {
-  return {
-    x: bounds.x,
-    y: bounds.y - DEFAULT_CONTINUOUS_ROI_HEIGHT,
-    width: Math.max(MIN_CONTINUOUS_ROI_WIDTH, bounds.width),
-    height: DEFAULT_CONTINUOUS_ROI_HEIGHT,
+  const contentBounds = win.getContentBounds()
+  const shapeRects: Electron.Rectangle[] = []
+  const addShapeRect = (x: number, y: number, width: number, height: number) => {
+    const rect = {
+      x: Math.max(0, Math.round(x)),
+      y: Math.max(0, Math.round(y)),
+      width: Math.max(0, Math.round(width)),
+      height: Math.max(0, Math.round(height)),
+    }
+    if (rect.width > 0 && rect.height > 0) shapeRects.push(rect)
   }
+
+  const scanX = Math.max(0, Math.round(currentScanAreaRect.x))
+  const scanY = Math.max(0, Math.round(currentScanAreaRect.y))
+  const scanWidth = Math.min(contentBounds.width - scanX, Math.round(currentScanAreaRect.width))
+  const scanHeight = Math.min(contentBounds.height - scanY, Math.round(currentScanAreaRect.height))
+  const frameInset = 8
+  const frameBand = 12
+  const frameX = scanX + frameInset
+  const frameY = scanY + frameInset
+  const frameWidth = Math.max(0, scanWidth - frameInset * 2)
+  const frameHeight = Math.max(0, scanHeight - frameInset * 2)
+
+  addShapeRect(frameX, frameY, frameWidth, frameBand)
+  addShapeRect(frameX, frameY + frameHeight - frameBand, frameWidth, frameBand)
+  addShapeRect(frameX, frameY, frameBand, frameHeight)
+  addShapeRect(frameX + frameWidth - frameBand, frameY, frameBand, frameHeight)
+
+  const controlPanelY = Math.min(contentBounds.height, Math.max(0, scanY + scanHeight))
+  addShapeRect(0, controlPanelY, contentBounds.width, contentBounds.height - controlPanelY)
+  win.setShape(shapeRects)
 }
 
-function closeOverlayWindow() {
-  if (!overlayWindow) return
-  isClosingOverlayFromApp = true
-  overlayWindow.close()
-  overlayWindow = null
-  overlayHeight = DEFAULT_CONTINUOUS_ROI_HEIGHT
-}
-
-ipcMain.handle('scanner:start-continuous-overlay', async (): Promise<Roi> => {
-  if (!overlayWindow) {
-    const parentBounds = getMainWindowBounds()
-    const initialRoi = getDefaultContinuousRoi(parentBounds)
-    createContinuousOverlayWindow(initialRoi)
+function updateScanAreaRect(rect: ScanAreaRect): Roi {
+  currentScanAreaRect = {
+    x: Math.max(0, rect.x),
+    y: Math.max(0, rect.y),
+    width: Math.max(MIN_CONTINUOUS_ROI_WIDTH, rect.width),
+    height: Math.max(MIN_CONTINUOUS_ROI_HEIGHT, rect.height),
   }
-  const roi = continuousOverlayRoi()
+  updateWindowShape()
+  const roi = embeddedScanAreaRoi()
+  if (!roi) throw new Error('Unable to locate scan area')
+  if (!hasShownWindow) {
+    win?.show()
+    hasShownWindow = true
+  }
+  sendContinuousOverlayRoi()
+  return roi
+}
+
+ipcMain.handle('scanner:start-continuous-overlay', async (_event, rect?: ScanAreaRect): Promise<Roi> => {
+  if (rect) return updateScanAreaRect(rect)
+  const roi = embeddedScanAreaRoi()
   if (!roi) throw new Error('Unable to create scan area')
   return roi
 })
 
 ipcMain.handle('scanner:stop-continuous-overlay', async () => {
-  closeOverlayWindow()
+  // The scan area is now part of the main window, so there is no separate window to close.
 })
 
-
-ipcMain.on('continuous-overlay:roi-changed', () => {
-  sendContinuousOverlayRoi()
+ipcMain.handle('scanner:update-scan-area', async (_event, rect: ScanAreaRect): Promise<Roi> => {
+  return updateScanAreaRect(rect)
 })
 
-ipcMain.on('continuous-overlay:set-bounds', (_event, requestedBounds: Electron.Rectangle) => {
-  if (!overlayWindow) return
-  overlayWindow.setBounds({
-    x: Math.round(requestedBounds.x),
-    y: Math.round(requestedBounds.y),
-    width: Math.max(MIN_CONTINUOUS_ROI_WIDTH, Math.round(requestedBounds.width)),
-    height: Math.max(MIN_CONTINUOUS_ROI_HEIGHT, Math.round(requestedBounds.height)),
-  })
-  syncMainWindowToOverlay()
+ipcMain.handle('window:minimize', () => {
+  win?.minimize()
 })
 
+ipcMain.handle('window:close', () => {
+  win?.close()
+})
 
 ipcMain.handle('scanner:capture-fullscreen', async (_event, roi: Roi) => {
   const centerPoint = { x: roi.x + roi.width / 2, y: roi.y + roi.height / 2 }
@@ -328,7 +220,6 @@ ipcMain.handle('scanner:capture-fullscreen', async (_event, roi: Roi) => {
     scaleFactor,
   }
 })
-
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
