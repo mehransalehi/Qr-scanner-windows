@@ -7,8 +7,11 @@
   "description": "QR Scanner app",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc && vite build && electron-builder",
-    "preview": "vite preview"
+    "build": "vue-tsc && vite build && electron-builder --config electron-builder.json5 --publish never",
+    "preview": "vite preview",
+    "build:mac": "vue-tsc && vite build && electron-builder --config electron-builder.json5 --mac --publish never",
+    "build:win": "vue-tsc && vite build && electron-builder --config electron-builder.json5 --win --publish never",
+    "build:linux": "vue-tsc && vite build && electron-builder --config electron-builder.json5 --linux --publish never"
   },
   "dependencies": {
     "@zxing/browser": "^0.2.0",
@@ -26,24 +29,5 @@
     "vite-plugin-electron-renderer": "^0.14.5",
     "vue-tsc": "^2.0.26"
   },
-  "main": "dist-electron/main.js",
-  "build": {
-    "appId": "com.windows-qr-scanner.id",
-    "productName": "QR Scanner",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "dist-electron/**/*",
-      "package.json"
-    ],
-    "win": {
-      "target": [
-        "nsis",
-        "portable"
-      ],
-      "icon": "public/icon.ico"
-    }
-  }
+  "main": "dist-electron/main.js"
 }

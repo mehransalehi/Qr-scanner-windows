@@ -1,31 +1,44 @@
 // @see - https://www.electron.build/configuration/configuration
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "YourAppID",
+  "appId": "com.windows-qr-scanner.id",
   "asar": true,
   "productName": "QR Scanner",
   "directories": {
-    "output": "release/${version}"
+    "output": "release"
   },
   "files": [
-    "dist",
-    "dist-electron"
+    "dist/**/*",
+    "dist-electron/**/*",
+    "package.json"
   ],
   "mac": {
+    "category": "public.app-category.utilities",
+    "identity": null,
+    "hardenedRuntime": false,
     "target": [
-      "dmg"
+      {
+        "target": "dmg",
+        "arch": [
+          "x64",
+          "arm64"
+        ]
+      },
+      {
+        "target": "zip",
+        "arch": [
+          "x64",
+          "arm64"
+        ]
+      }
     ],
-    "artifactName": "${productName}-Mac-${version}-Installer.${ext}"
+    "artifactName": "${productName}-Mac-${arch}-${version}.${ext}"
   },
   "win": {
     "icon": "public/icon.ico",
     "target": [
-      {
-        "target": "nsis",
-        "arch": [
-          "x64"
-        ]
-      }
+      "nsis",
+      "portable"
     ],
     "artifactName": "${productName}-Windows-${version}-Setup.${ext}"
   },
