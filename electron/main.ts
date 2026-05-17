@@ -73,15 +73,8 @@ function createWindow() {
 
   win.setContentProtection(true)
 
-  win.once('ready-to-show', () => {
-    updateWindowShape()
-  })
-
   win.on('move', () => sendContinuousOverlayRoi())
-  win.on('resize', () => {
-    updateWindowShape()
-    sendContinuousOverlayRoi()
-  })
+  win.on('resize', () => sendContinuousOverlayRoi())
 
   win.webContents.on('context-menu', (_event, params) => {
     if (!params.isEditable) return
@@ -118,35 +111,6 @@ function sendContinuousOverlayRoi() {
   if (roi) win?.webContents.send('scanner:continuous-roi-changed', roi)
 }
 
-function updateWindowShape() {
-  if (!win || process.platform === 'darwin') return
-
-  const contentBounds = win.getContentBounds()
-  const shapeRects: Electron.Rectangle[] = []
-  const addShapeRect = (x: number, y: number, width: number, height: number) => {
-    const rect = {
-      x: Math.max(0, Math.round(x)),
-      y: Math.max(0, Math.round(y)),
-      width: Math.max(0, Math.round(width)),
-      height: Math.max(0, Math.round(height)),
-    }
-    if (rect.width > 0 && rect.height > 0) shapeRects.push(rect)
-  }
-
-  const scanX = Math.max(0, Math.round(currentScanAreaRect.x))
-  const scanY = Math.max(0, Math.round(currentScanAreaRect.y))
-  const scanWidth = Math.min(contentBounds.width - scanX, Math.round(currentScanAreaRect.width))
-  const scanHeight = Math.min(contentBounds.height - scanY, Math.round(currentScanAreaRect.height))
-
-  // Keep the whole scan area in the native window shape so clicks and drags
-  // anywhere inside the transparent top area are handled by this app instead
-  // of falling through to windows underneath it.
-  addShapeRect(scanX, scanY, scanWidth, scanHeight)
-
-  const controlPanelY = Math.min(contentBounds.height, Math.max(0, scanY + scanHeight))
-  addShapeRect(0, controlPanelY, contentBounds.width, contentBounds.height - controlPanelY)
-  win.setShape(shapeRects)
-}
 
 function updateScanAreaRect(rect: ScanAreaRect): Roi {
   currentScanAreaRect = {
@@ -155,7 +119,6 @@ function updateScanAreaRect(rect: ScanAreaRect): Roi {
     width: Math.max(MIN_CONTINUOUS_ROI_WIDTH, rect.width),
     height: Math.max(MIN_CONTINUOUS_ROI_HEIGHT, rect.height),
   }
-  updateWindowShape()
   const roi = embeddedScanAreaRoi()
   if (!roi) throw new Error('Unable to locate scan area')
   if (!hasShownWindow) {

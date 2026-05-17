@@ -37,20 +37,10 @@ export function withPadding(roi: Roi): Roi {
   }
 }
 
-function nextFrame() {
-  return new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
-}
 
 export async function captureRoiImage(roi: Roi): Promise<string> {
-  document.body.classList.add('is-capturing')
-  await nextFrame()
+  const capture = await window.scannerApi.captureFullscreen(roi)
 
-  let capture: Awaited<ReturnType<typeof window.scannerApi.captureFullscreen>>
-  try {
-    capture = await window.scannerApi.captureFullscreen(roi)
-  } finally {
-    document.body.classList.remove('is-capturing')
-  }
   const img = new Image()
   img.src = capture.imageDataUrl
   await img.decode()
