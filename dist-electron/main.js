@@ -1,103 +1,131 @@
-import { ipcMain as c, screen as O, desktopCapturer as U, app as o, BrowserWindow as I, Menu as f } from "electron";
-import { fileURLToPath as M } from "node:url";
-import a from "node:path";
-const N = a.dirname(M(import.meta.url)), m = process.env.VITE_DEV_SERVER_URL, g = 360, y = 320, R = 230, b = y + R, u = 260, h = 120, A = h + R;
-let e = null, i = {
+import { ipcMain as l, screen as L, desktopCapturer as F, app as i, BrowserWindow as S, Menu as O } from "electron";
+import { fileURLToPath as B } from "node:url";
+import d from "node:path";
+const j = d.dirname(B(import.meta.url)), U = process.env.VITE_DEV_SERVER_URL, b = 360, N = 320, W = 230, z = N + W, y = 260, R = 120, V = R + W;
+let t = null, _ = !1, a = {
   x: 0,
   y: 0,
-  width: g,
-  height: y
+  width: b,
+  height: N
 };
-function D() {
-  return o.isPackaged ? a.join(o.getAppPath(), "dist", "index.html") : a.join(process.env.APP_ROOT ?? "", "dist", "index.html");
+function G() {
+  return i.isPackaged ? d.join(i.getAppPath(), "dist", "index.html") : d.join(process.env.APP_ROOT ?? "", "dist", "index.html");
 }
-function v() {
-  return o.isPackaged ? a.join(o.getAppPath(), "dist", "icon.ico") : a.join(process.env.APP_ROOT ?? process.cwd(), "public", "icon.ico");
+function k() {
+  return i.isPackaged ? d.join(i.getAppPath(), "dist", "icon.ico") : d.join(process.env.APP_ROOT ?? process.cwd(), "public", "icon.ico");
 }
-function E() {
-  f.setApplicationMenu(null), e = new I({
-    width: g,
-    height: b,
-    minWidth: u,
-    minHeight: A,
+function A() {
+  O.setApplicationMenu(null), t = new S({
+    width: b,
+    height: z,
+    minWidth: y,
+    minHeight: V,
     useContentSize: !0,
     title: "QR Scanner",
-    icon: v(),
+    icon: k(),
+    show: !1,
+    frame: !1,
+    resizable: !1,
     transparent: !0,
     backgroundColor: "#00000000",
     webPreferences: {
-      preload: a.join(N, "preload.mjs"),
+      preload: d.join(j, "preload.mjs"),
       contextIsolation: !0
     }
-  }), e.on("closed", () => {
-    e = null;
-  }), e.on("move", () => d()), e.on("resize", () => d()), e.webContents.on("context-menu", (n, t) => {
-    t.isEditable && f.buildFromTemplate([
+  }), t.on("closed", () => {
+    _ = !1, t = null;
+  }), t.setContentProtection(!0), t.once("ready-to-show", () => {
+    I();
+  }), t.on("move", () => x()), t.on("resize", () => {
+    I(), x();
+  }), t.webContents.on("context-menu", (e, n) => {
+    n.isEditable && O.buildFromTemplate([
       { role: "cut" },
       { role: "copy" },
       { role: "paste" },
       { type: "separator" },
       { role: "selectAll" }
-    ]).popup({ window: e ?? void 0 });
-  }), m ? e.loadURL(m) : e.loadFile(D());
+    ]).popup({ window: t ?? void 0 });
+  }), U ? t.loadURL(U) : t.loadFile(G());
 }
-function p() {
-  if (!e) return null;
-  const n = e.getContentBounds();
+function E() {
+  if (!t) return null;
+  const e = t.getContentBounds();
   return {
-    x: Math.round(n.x + i.x),
-    y: Math.round(n.y + i.y),
-    width: Math.max(u, Math.round(i.width)),
-    height: Math.max(h, Math.round(i.height))
+    x: Math.round(e.x + a.x),
+    y: Math.round(e.y + a.y),
+    width: Math.max(y, Math.round(a.width)),
+    height: Math.max(R, Math.round(a.height))
   };
 }
-function d() {
-  const n = p();
-  n && (e == null || e.webContents.send("scanner:continuous-roi-changed", n));
+function x() {
+  const e = E();
+  e && (t == null || t.webContents.send("scanner:continuous-roi-changed", e));
 }
-function T(n) {
-  i = {
-    x: Math.max(0, n.x),
-    y: Math.max(0, n.y),
-    width: Math.max(u, n.width),
-    height: Math.max(h, n.height)
-  };
-  const t = p();
-  if (!t) throw new Error("Unable to locate scan area");
-  return d(), t;
+function I() {
+  if (!t || process.platform === "darwin") return;
+  const e = t.getContentBounds(), n = [], o = (D, H, v, C) => {
+    const g = {
+      x: Math.max(0, Math.round(D)),
+      y: Math.max(0, Math.round(H)),
+      width: Math.max(0, Math.round(v)),
+      height: Math.max(0, Math.round(C))
+    };
+    g.width > 0 && g.height > 0 && n.push(g);
+  }, r = Math.max(0, Math.round(a.x)), s = Math.max(0, Math.round(a.y)), m = Math.min(e.width - r, Math.round(a.width)), u = Math.min(e.height - s, Math.round(a.height)), c = 8, h = 12, p = r + c, f = s + c, w = Math.max(0, m - c * 2), M = Math.max(0, u - c * 2);
+  o(p, f, w, h), o(p, f + M - h, w, h), o(p, f, h, M), o(p + w - h, f, h, M);
+  const T = Math.min(e.height, Math.max(0, s + u));
+  o(0, T, e.width, e.height - T), t.setShape(n);
 }
-c.handle("scanner:start-continuous-overlay", async (n, t) => {
-  if (t) return T(t);
-  const s = p();
-  if (!s) throw new Error("Unable to create scan area");
-  return s;
+function P(e) {
+  a = {
+    x: Math.max(0, e.x),
+    y: Math.max(0, e.y),
+    width: Math.max(y, e.width),
+    height: Math.max(R, e.height)
+  }, I();
+  const n = E();
+  if (!n) throw new Error("Unable to locate scan area");
+  return _ || (t == null || t.show(), _ = !0), x(), n;
+}
+l.handle("scanner:start-continuous-overlay", async (e, n) => {
+  if (n) return P(n);
+  const o = E();
+  if (!o) throw new Error("Unable to create scan area");
+  return o;
 });
-c.handle("scanner:stop-continuous-overlay", async () => {
+l.handle("scanner:stop-continuous-overlay", async () => {
 });
-c.handle("scanner:update-scan-area", async (n, t) => T(t));
-c.handle("scanner:capture-fullscreen", async (n, t) => {
-  const s = { x: t.x + t.width / 2, y: t.y + t.height / 2 }, r = O.getDisplayNearestPoint(s), l = r.scaleFactor || 1, _ = await U.getSources({
+l.handle("scanner:update-scan-area", async (e, n) => P(n));
+l.handle("window:minimize", () => {
+  t == null || t.minimize();
+});
+l.handle("window:close", () => {
+  t == null || t.close();
+});
+l.handle("scanner:capture-fullscreen", async (e, n) => {
+  const o = { x: n.x + n.width / 2, y: n.y + n.height / 2 }, r = L.getDisplayNearestPoint(o), s = r.scaleFactor || 1, m = await F.getSources({
     types: ["screen"],
     thumbnailSize: {
-      width: Math.floor(r.bounds.width * l),
-      height: Math.floor(r.bounds.height * l)
+      width: Math.floor(r.bounds.width * s),
+      height: Math.floor(r.bounds.height * s)
     },
     fetchWindowIcons: !1
-  }), w = _.find((x) => x.display_id === String(r.id)) || _[0];
-  if (!w) throw new Error("No screen source available");
+  }), u = m.find((c) => c.display_id === String(r.id)) || m[0];
+  if (!u) throw new Error("No screen source available");
   return {
-    imageDataUrl: w.thumbnail.toDataURL(),
+    imageDataUrl: u.thumbnail.toDataURL(),
     displayBounds: r.bounds,
-    scaleFactor: l
+    scaleFactor: s
   };
 });
-o.on("window-all-closed", () => {
-  process.platform !== "darwin" && (o.quit(), e = null);
+i.on("window-all-closed", () => {
+  process.platform !== "darwin" && (i.quit(), t = null);
 });
-o.on("activate", () => {
-  I.getAllWindows().length === 0 && E();
+i.on("activate", () => {
+  S.getAllWindows().length === 0 && A();
 });
-o.whenReady().then(E);
+i.whenReady().then(A);
 export {
-  m as VITE_DEV_SERVER_URL
+  U as VITE_DEV_SERVER_URL
 };

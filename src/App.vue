@@ -167,6 +167,14 @@ function onEsc(e: KeyboardEvent) {
   if (e.key === 'Escape') stopScan()
 }
 
+function minimizeWindow() {
+  void window.scannerApi.minimizeWindow()
+}
+
+function closeWindow() {
+  void window.scannerApi.closeWindow()
+}
+
 window.addEventListener('keydown', onEsc)
 window.addEventListener('beforeunload', saveServerUrl)
 window.addEventListener('resize', refreshScanArea)
@@ -197,12 +205,16 @@ onBeforeUnmount(() => {
 <template>
   <main class="app">
     <section ref="scanAreaRef" class="scan-area" aria-label="QR scan capture area">
-      <div class="scan-area-frame">
-        <span class="scan-area-label">QR scan area</span>
-      </div>
+      <div class="scan-area-frame"></div>
     </section>
     <section class="control-panel">
-      <h1>QR Scanner</h1>
+      <div class="window-header">
+        <h1>QR Scanner</h1>
+        <div class="window-actions" aria-label="Window controls">
+          <button type="button" class="window-action" aria-label="Minimize" @click="minimizeWindow">−</button>
+          <button type="button" class="window-action close" aria-label="Close" @click="closeWindow">×</button>
+        </div>
+      </div>
       <ScannerControls
         :server-url="serverUrl"
         :tooltip-message="tooltipMessage"

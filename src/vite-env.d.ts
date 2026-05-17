@@ -9,6 +9,8 @@ declare global {
       startContinuousOverlay: (rect?: Roi) => Promise<Roi>
       stopContinuousOverlay: () => Promise<void>
       updateScanArea: (rect: Roi) => Promise<Roi>
+      minimizeWindow: () => Promise<void>
+      closeWindow: () => Promise<void>
       onContinuousRoiChanged: (callback: (roi: Roi) => void) => ScannerApiCleanup
       captureFullscreen: (roi: Roi) => Promise<{
         imageDataUrl: string

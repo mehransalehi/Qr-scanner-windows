@@ -18,6 +18,7 @@ const MIN_CONTINUOUS_ROI_HEIGHT = 120
 const MIN_WINDOW_HEIGHT = MIN_CONTINUOUS_ROI_HEIGHT + DEFAULT_MAIN_WINDOW_HEIGHT
 
 let win: BrowserWindow | null = null
+let hasShownWindow = false
 let currentScanAreaRect: ScanAreaRect = {
   x: 0,
   y: 0,
@@ -54,6 +55,9 @@ function createWindow() {
     useContentSize: true,
     title: 'QR Scanner',
     icon: getAppIconPath(),
+    show: false,
+    frame: false,
+    resizable: false,
     transparent: true,
     backgroundColor: '#00000000',
     webPreferences: {
@@ -63,11 +67,21 @@ function createWindow() {
   })
 
   win.on('closed', () => {
+    hasShownWindow = false
     win = null
   })
 
+  win.setContentProtection(true)
+
+  win.once('ready-to-show', () => {
+    updateWindowShape()
+  })
+
   win.on('move', () => sendContinuousOverlayRoi())
-  win.on('resize', () => sendContinuousOverlayRoi())
+  win.on('resize', () => {
+    updateWindowShape()
+    sendContinuousOverlayRoi()
+  })
 
   win.webContents.on('context-menu', (_event, params) => {
     if (!params.isEditable) return
@@ -104,6 +118,42 @@ function sendContinuousOverlayRoi() {
   if (roi) win?.webContents.send('scanner:continuous-roi-changed', roi)
 }
 
+function updateWindowShape() {
+  if (!win || process.platform === 'darwin') return
+
+  const contentBounds = win.getContentBounds()
+  const shapeRects: Electron.Rectangle[] = []
+  const addShapeRect = (x: number, y: number, width: number, height: number) => {
+    const rect = {
+      x: Math.max(0, Math.round(x)),
+      y: Math.max(0, Math.round(y)),
+      width: Math.max(0, Math.round(width)),
+      height: Math.max(0, Math.round(height)),
+    }
+    if (rect.width > 0 && rect.height > 0) shapeRects.push(rect)
+  }
+
+  const scanX = Math.max(0, Math.round(currentScanAreaRect.x))
+  const scanY = Math.max(0, Math.round(currentScanAreaRect.y))
+  const scanWidth = Math.min(contentBounds.width - scanX, Math.round(currentScanAreaRect.width))
+  const scanHeight = Math.min(contentBounds.height - scanY, Math.round(currentScanAreaRect.height))
+  const frameInset = 8
+  const frameBand = 12
+  const frameX = scanX + frameInset
+  const frameY = scanY + frameInset
+  const frameWidth = Math.max(0, scanWidth - frameInset * 2)
+  const frameHeight = Math.max(0, scanHeight - frameInset * 2)
+
+  addShapeRect(frameX, frameY, frameWidth, frameBand)
+  addShapeRect(frameX, frameY + frameHeight - frameBand, frameWidth, frameBand)
+  addShapeRect(frameX, frameY, frameBand, frameHeight)
+  addShapeRect(frameX + frameWidth - frameBand, frameY, frameBand, frameHeight)
+
+  const controlPanelY = Math.min(contentBounds.height, Math.max(0, scanY + scanHeight))
+  addShapeRect(0, controlPanelY, contentBounds.width, contentBounds.height - controlPanelY)
+  win.setShape(shapeRects)
+}
+
 function updateScanAreaRect(rect: ScanAreaRect): Roi {
   currentScanAreaRect = {
     x: Math.max(0, rect.x),
@@ -111,8 +161,13 @@ function updateScanAreaRect(rect: ScanAreaRect): Roi {
     width: Math.max(MIN_CONTINUOUS_ROI_WIDTH, rect.width),
     height: Math.max(MIN_CONTINUOUS_ROI_HEIGHT, rect.height),
   }
+  updateWindowShape()
   const roi = embeddedScanAreaRoi()
   if (!roi) throw new Error('Unable to locate scan area')
+  if (!hasShownWindow) {
+    win?.show()
+    hasShownWindow = true
+  }
   sendContinuousOverlayRoi()
   return roi
 }
@@ -130,6 +185,14 @@ ipcMain.handle('scanner:stop-continuous-overlay', async () => {
 
 ipcMain.handle('scanner:update-scan-area', async (_event, rect: ScanAreaRect): Promise<Roi> => {
   return updateScanAreaRect(rect)
+})
+
+ipcMain.handle('window:minimize', () => {
+  win?.minimize()
+})
+
+ipcMain.handle('window:close', () => {
+  win?.close()
 })
 
 ipcMain.handle('scanner:capture-fullscreen', async (_event, roi: Roi) => {
