@@ -137,17 +137,11 @@ function updateWindowShape() {
   const scanY = Math.max(0, Math.round(currentScanAreaRect.y))
   const scanWidth = Math.min(contentBounds.width - scanX, Math.round(currentScanAreaRect.width))
   const scanHeight = Math.min(contentBounds.height - scanY, Math.round(currentScanAreaRect.height))
-  const frameInset = 8
-  const frameBand = 12
-  const frameX = scanX + frameInset
-  const frameY = scanY + frameInset
-  const frameWidth = Math.max(0, scanWidth - frameInset * 2)
-  const frameHeight = Math.max(0, scanHeight - frameInset * 2)
 
-  addShapeRect(frameX, frameY, frameWidth, frameBand)
-  addShapeRect(frameX, frameY + frameHeight - frameBand, frameWidth, frameBand)
-  addShapeRect(frameX, frameY, frameBand, frameHeight)
-  addShapeRect(frameX + frameWidth - frameBand, frameY, frameBand, frameHeight)
+  // Keep the whole scan area in the native window shape so clicks and drags
+  // anywhere inside the transparent top area are handled by this app instead
+  // of falling through to windows underneath it.
+  addShapeRect(scanX, scanY, scanWidth, scanHeight)
 
   const controlPanelY = Math.min(contentBounds.height, Math.max(0, scanY + scanHeight))
   addShapeRect(0, controlPanelY, contentBounds.width, contentBounds.height - controlPanelY)
