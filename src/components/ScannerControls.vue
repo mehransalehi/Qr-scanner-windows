@@ -3,6 +3,7 @@ defineProps<{
   serverUrl: string
   tooltipMessage: string
   tooltipType: 'success' | 'error'
+  isScanning: boolean
 }>()
 
 const emit = defineEmits<{
@@ -26,7 +27,9 @@ const emit = defineEmits<{
         {{ tooltipMessage }}
       </div>
     </div>
-    <button @click="emit('start')">Check Server and Start Scan</button>
+    <button :disabled="isScanning" @click="emit('start')">
+      {{ isScanning ? 'Scanning...' : 'Check Server and Start Scan' }}
+    </button>
     <button class="danger" @click="emit('stop')">Stop Scan</button>
   </div>
 </template>

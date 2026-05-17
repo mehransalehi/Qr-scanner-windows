@@ -1,20 +1,72 @@
 :root {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   color: #e8eef9;
-  background: #0f1724;
+  background: transparent;
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; background: #0f1724; }
-#app { max-width: 520px; margin: 0 auto; padding: 24px; }
+body { margin: 0; min-width: 320px; background: transparent; }
+#app { width: 100vw; min-height: 100vh; margin: 0; background: transparent; }
 
 .app {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  min-height: 100vh;
+  background: transparent;
 }
 
-.app h1 {
+.scan-area {
+  position: relative;
+  flex: 1 1 320px;
+  min-height: 120px;
+  background: transparent;
+}
+
+.scan-area-frame {
+  position: absolute;
+  inset: 8px;
+  border: 2px solid #58a6ff;
+  border-radius: 10px;
+  background: rgba(88, 166, 255, .18);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .35);
+  pointer-events: none;
+}
+
+body.is-capturing .scan-area-frame {
+  opacity: 0;
+}
+
+.scan-area-frame::after {
+  content: '';
+  position: absolute;
+  inset: 10px;
+  border: 1px dashed rgba(255, 255, 255, .75);
+  border-radius: 8px;
+}
+
+.scan-area-label {
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 36, .72);
+  color: #dbeafe;
+  font-size: 12px;
+  letter-spacing: .02em;
+}
+
+.control-panel {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 24px 24px;
+  background: #0f1724;
+  box-shadow: 0 -12px 28px rgba(0, 0, 0, .28);
+}
+
+.control-panel h1 {
   margin: 0;
   text-align: center;
 }
@@ -38,9 +90,10 @@ button {
 
 input { cursor: text; }
 button { cursor: pointer; }
-button:hover { background: #244372; }
-button:disabled { opacity: .5; cursor: not-allowed; }
+button:hover:not(:disabled) { background: #244372; }
+button:disabled { opacity: .7; cursor: not-allowed; }
 button.danger { background: #6a2127; border-color: #8f3139; }
+button.danger:hover { background: #7b2930; }
 
 .warn { color: #ffd36e; }
 .error { color: #ff8484; }
