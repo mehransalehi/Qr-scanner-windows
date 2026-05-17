@@ -14,8 +14,10 @@
   ],
   "mac": {
     "category": "public.app-category.utilities",
-    "identity": null,
+    "sign": "./build/mac-ad-hoc-sign.cjs",
     "hardenedRuntime": false,
+    "gatekeeperAssess": false,
+    "strictVerify": false,
     "target": [
       {
         "target": "dmg",
